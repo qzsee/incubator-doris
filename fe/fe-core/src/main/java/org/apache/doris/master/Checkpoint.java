@@ -80,9 +80,13 @@ public class Checkpoint extends MasterDaemon {
             // get max finalized journal id
             checkPointVersion = editLog.getFinalizedJournalId();
             LOG.info("last checkpoint journal id: {}, current finalized journal id: {}", imageVersion, checkPointVersion);
-            if (imageVersion >= checkPointVersion) {
-                return;
+
+            if (!Config.force_checkpoint){
+                if (imageVersion >= checkPointVersion) {
+                    return;
+                }
             }
+
         } catch (IOException e) {
             LOG.error("Does not get storage info", e);
             if (MetricRepo.isInit) {

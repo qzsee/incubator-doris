@@ -1226,6 +1226,13 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true, masterOnly = true)
     public static boolean force_do_metadata_checkpoint = false;
 
+
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean force_checkpoint = false;
+
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean colocate_npe = false;
+
     /**
      * The multi cluster feature will be deprecated in version 0.12
      * set this config to true will disable all operations related to cluster feature, include:
