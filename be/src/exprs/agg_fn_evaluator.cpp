@@ -434,6 +434,9 @@ bool AggFnEvaluator::is_in_hybridmap(void* input_val, Tuple* dst, bool* is_add_b
 void AggFnEvaluator::init(FunctionContext* agg_fn_ctx, Tuple* dst) {
     DCHECK(_init_fn != nullptr);
     reinterpret_cast<InitFn>(_init_fn)(agg_fn_ctx, _staging_intermediate_val);
+    if (_intermediate_slot_desc->type().type == TYPE_INT){
+        LOG(INFO) << "[shi] AggFnEvaluator::init : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
+    }
     set_output_slot(_staging_intermediate_val, _intermediate_slot_desc, dst);
     agg_fn_ctx->impl()->set_num_updates(0);
     agg_fn_ctx->impl()->set_num_removes(0);
@@ -735,6 +738,10 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
             }
             reinterpret_cast<UpdateFn1>(fn)(agg_fn_ctx, *_staging_input_vals[0],
                                             _staging_intermediate_val);
+
+            if (_intermediate_slot_desc->type().type == TYPE_INT){
+                LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge 1 : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
+            }
             break;
 
         case 2:
@@ -786,9 +793,6 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
         default:
             DCHECK(false) << "NYI";
         }
-    }
-    if (_intermediate_slot_desc->type().type == TYPE_INT){
-        LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge 1 : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
     }
     set_output_slot(_staging_intermediate_val, _intermediate_slot_desc, dst);
 
