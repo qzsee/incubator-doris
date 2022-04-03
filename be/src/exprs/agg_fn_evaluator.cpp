@@ -372,7 +372,9 @@ inline void AggFnEvaluator::set_output_slot(const AnyVal* src, const SlotDescrip
         return;
 
     case TYPE_INT:
+        LOG(INFO) << "[shi] AggFnEvaluator::set_output_slot : " << reinterpret_cast<const IntVal*>(src)->val;;
         *reinterpret_cast<int32_t*>(slot) = reinterpret_cast<const IntVal*>(src)->val;
+        LOG(INFO) << "[shi] AggFnEvaluator::set_output_slot1 : " << *reinterpret_cast<int32_t*>(slot) ;
         return;
 
     case TYPE_BIGINT:
