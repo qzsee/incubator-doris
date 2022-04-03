@@ -662,7 +662,7 @@ Status AnalyticEvalNode::process_child_batch(RuntimeState* state) {
             stream_idx - _rows_start_offset >= _curr_partition_idx) {
             VLOG_ROW << id() << " Update idx=" << stream_idx;
             AggFnEvaluator::add(_evaluators, _fn_ctxs, row, _curr_tuple);
-            LOG(INFO) << "[shi] add result : " << _curr_tuple->to_string(_intermediate_tuple_desc);
+            LOG(INFO) << "[shi] add result : " << _curr_tuple->to_string(*_intermediate_tuple_desc);
             if (_window.__isset.window_start) {
                 VLOG_ROW << id() << " Adding tuple to window at idx=" << stream_idx;
                 Tuple* tuple =
