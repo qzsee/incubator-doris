@@ -94,6 +94,7 @@ Status AggFnEvaluator::create(ObjectPool* pool, const TExpr& desc, bool is_analy
         RETURN_IF_ERROR(
                 Expr::create_tree_from_thrift(pool, desc.nodes, nullptr, &node_idx, &expr, &ctx));
         (*result)->_input_exprs_ctxs.push_back(ctx);
+        LOG(INFO) << "[shi] AggFnEvaluator::create : " << ctx->root()->debug_string();
     }
     return Status::OK();
 }
@@ -438,17 +439,17 @@ void AggFnEvaluator::init(FunctionContext* agg_fn_ctx, Tuple* dst) {
     agg_fn_ctx->impl()->set_num_removes(0);
 }
 
-void AggFnEvaluator::update_mem_limlits(int len) {
-    _accumulated_mem_consumption += len;
-    // per 16M , update mem_tracker one time
-    if (UNLIKELY(_accumulated_mem_consumption > 16777216)) {
-        _mem_tracker->consume(_accumulated_mem_consumption);
-        _total_mem_consumption += _accumulated_mem_consumption;
-        _accumulated_mem_consumption = 0;
-    }
-}
-
 AggFnEvaluator::~AggFnEvaluator() {}
+
+    void AggFnEvaluator::update_mem_limlits(int len) {
+        _accumulated_mem_consumption += len;
+        // per 16M , update mem_tracker one time
+        if (UNLIKELY(_accumulated_mem_consumption > 16777216)) {
+            _mem_tracker->consume(_accumulated_mem_consumption);
+            _total_mem_consumption += _accumulated_mem_consumption;
+            _accumulated_mem_consumption = 0;
+        }
+    }
 
 inline void AggFnEvaluator::update_mem_trackers(bool is_filter, bool is_add_buckets, int len) {
     if (!is_filter) {
@@ -699,6 +700,9 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
     } else {
         for (int i = 0; i < input_expr_ctxs().size(); ++i) {
             void* src_slot = input_expr_ctxs()[i]->get_value(row);
+            if (input_expr_ctxs()[i]->root()->type().type == TYPE_INT) {
+                LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge : " << *reinterpret_cast<const int32_t*>(src_slot);
+            }
             set_any_val(src_slot, input_expr_ctxs()[i]->root()->type(), _staging_input_vals[i]);
         }
     }
@@ -773,7 +777,9 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
             DCHECK(false) << "NYI";
         }
     }
-
+    if (_intermediate_slot_desc->type().type == TYPE_INT){
+        LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge 1 : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
+    }
     set_output_slot(_staging_intermediate_val, _intermediate_slot_desc, dst);
 }
 
