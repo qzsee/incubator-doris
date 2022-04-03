@@ -704,12 +704,19 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
                 LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge : " << *reinterpret_cast<const int32_t*>(src_slot);
             }
             set_any_val(src_slot, input_expr_ctxs()[i]->root()->type(), _staging_input_vals[i]);
+            if (input_expr_ctxs()[i]->root()->type().type == TYPE_INT) {
+                LOG(INFO) << "[shi] AggFnEvaluator::update_or_mergexxx  : " << reinterpret_cast<const IntVal*>(_staging_input_vals[i])->val;
+            }
         }
     }
 
     // TODO: this part is not so good and not scalable. It can be replaced with
     // codegen but we can also consider leaving it for the first few cases for
     // debugging.
+
+    if (_intermediate_slot_desc->type().type == TYPE_INT){
+        LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge 0 : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
+    }
 
     // if _agg_op is TAggregationOp::COUNT_DISTINCT, it has only one
     // input parameter, we consider the first parameter as the only input parameter
@@ -723,6 +730,9 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
             break;
 
         case 1:
+            if (_intermediate_slot_desc->type().type == TYPE_INT){
+                LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge ---- : " << reinterpret_cast<const IntVal*>(_staging_input_vals[0])->val;
+            }
             reinterpret_cast<UpdateFn1>(fn)(agg_fn_ctx, *_staging_input_vals[0],
                                             _staging_intermediate_val);
             break;
@@ -781,6 +791,7 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
         LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge 1 : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
     }
     set_output_slot(_staging_intermediate_val, _intermediate_slot_desc, dst);
+
 }
 
 void AggFnEvaluator::update(FunctionContext* agg_fn_ctx, TupleRow* row, Tuple* dst, void* fn,

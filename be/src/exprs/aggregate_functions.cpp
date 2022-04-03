@@ -604,6 +604,7 @@ void AggregateFunctions::min_init(FunctionContext* ctx, T* dst) {
     // set to null when intermediate slot is nullable
     val.is_null = true;
     *dst = val;
+    LOG(INFO) << "[shi] min_init ";
 }
 
 template <typename T>
