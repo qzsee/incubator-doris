@@ -438,6 +438,12 @@ void AggFnEvaluator::init(FunctionContext* agg_fn_ctx, Tuple* dst) {
         LOG(INFO) << "[shi] AggFnEvaluator::init : " << reinterpret_cast<const IntVal*>(_staging_intermediate_val)->val;
     }
     set_output_slot(_staging_intermediate_val, _intermediate_slot_desc, dst);
+
+    if (_intermediate_slot_desc->type().type == TYPE_INT){
+        void* slot = dst->get_slot(_intermediate_slot_desc->tuple_offset());
+        LOG(INFO) << "[shi] AggFnEvaluator::init1 : " << *reinterpret_cast<int32_t*>(slot) ;
+    }
+
     agg_fn_ctx->impl()->set_num_updates(0);
     agg_fn_ctx->impl()->set_num_removes(0);
 }
@@ -680,6 +686,11 @@ void AggFnEvaluator::update_or_merge(FunctionContext* agg_fn_ctx, TupleRow* row,
 
     if (!dst_null) {
         dst_slot = dst->get_slot(_intermediate_slot_desc->tuple_offset());
+    }
+
+    if (_intermediate_slot_desc->type().type == TYPE_INT){
+        void* slot = dst->get_slot(_intermediate_slot_desc->tuple_offset());
+        LOG(INFO) << "[shi] AggFnEvaluator::update_or_merge dst : " << *reinterpret_cast<int32_t*>(slot) ;
     }
 
     set_any_val(dst_slot, _intermediate_slot_desc->type(), _staging_intermediate_val);
