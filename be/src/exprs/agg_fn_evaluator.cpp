@@ -277,6 +277,7 @@ void AggFnEvaluator::close(RuntimeState* state) {
 // Utility to put val into an AnyVal struct
 inline void AggFnEvaluator::set_any_val(const void* slot, const TypeDescriptor& type, AnyVal* dst) {
     if (slot == nullptr) {
+        LOG(INFO) << "[shi] AggFnEvaluator::set_any_val aaaaaaaaaaaaaaaaaaa  ";
         dst->is_null = true;
         return;
     }
