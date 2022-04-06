@@ -2122,7 +2122,7 @@ public class QueryPlanTest {
                 "    k1 int,\n" +
                 "    v int\n" +
                 ")\n" +
-                "DISTRIBUTED BY HASH(k) BUCKETS 10\n" +
+                "DISTRIBUTED BY HASH(k1) BUCKETS 10\n" +
                 "PROPERTIES(\"replication_num\" = \"1\");");
 
         createTable("create table out_join_2\n" +
@@ -2130,7 +2130,7 @@ public class QueryPlanTest {
                 "    k1 int,\n" +
                 "    v int\n" +
                 ")\n" +
-                "DISTRIBUTED BY HASH(k) BUCKETS 10\n" +
+                "DISTRIBUTED BY HASH(k1) BUCKETS 10\n" +
                 "PROPERTIES(\"replication_num\" = \"1\");");
 
         String sql = "explain select * from out_join_1 left join out_join_2 on out_join_1.k1 = out_join_2.k1 and 1=2;";
