@@ -2135,7 +2135,16 @@ public class QueryPlanTest {
 
         String sql = "explain select * from out_join_1 left join out_join_2 on out_join_1.k1 = out_join_2.k1 and 1=2;";
         String explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, sql);
-        System.out.println(explainString);
+        Assert.assertFalse(explainString.contains("non-equal LEFT OUTER JOIN is not supported"));
+
+        sql = "explain select * from out_join_1 right join out_join_2 on out_join_1.k1 = out_join_2.k1 and 1=2;";
+        explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, sql);
+        Assert.assertFalse(explainString.contains("non-equal RIGHT OUTER JOIN is not supported"));
+
+        sql = "explain select * from out_join_1 full join out_join_2 on out_join_1.k1 = out_join_2.k1 and 1=2;";
+        explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, sql);
+        Assert.assertFalse(explainString.contains("non-equal FULL OUTER JOIN is not supported"));
+
     }
 
 
