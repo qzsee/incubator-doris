@@ -581,9 +581,9 @@ public class TableRef implements ParseNode, Writable {
             throws AnalysisException {
         Preconditions.checkState(isAnalyzed);
         if (onClause != null) {
-            if (isOuterJoin()) {
-                return;
-            }
+//            if (isOuterJoin()) {
+//                return;
+//            }
             onClause = rewriter.rewrite(onClause, analyzer, ExprRewriter.ClauseType.ON_CLAUSE);
         }
     }
