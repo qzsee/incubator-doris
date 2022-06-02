@@ -68,7 +68,13 @@ public class SimplifyNotExprRule extends AbstractExpressionRewriteRule {
                     return expr;
             }
         }
-
+        /* not sure rewrite CompoundPredicate
+         if (child instanceof CompoundPredicate) {
+            List<Expression> children = RewriteHelper.extract((CompoundPredicate) child);
+            List<Expression> negatedPredicates = children.stream().map(predicate ->
+                rewrite(new Not(predicate), context)).collect(Collectors.toList());
+            return RewriteHelper.compound(((CompoundPredicate<?, ?>) child).opFlip(), negatedPredicates);
+        }*/
         if (child instanceof Not) {
             Not son = (Not) child;
             return rewrite(son.child(), context);

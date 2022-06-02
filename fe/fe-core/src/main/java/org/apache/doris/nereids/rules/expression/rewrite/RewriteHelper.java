@@ -14,18 +14,96 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
 package org.apache.doris.nereids.rules.expression.rewrite;
 
+import org.apache.doris.nereids.trees.expressions.CompoundPredicate;
+import org.apache.doris.nereids.trees.expressions.CompoundPredicate.Op;
 import org.apache.doris.nereids.trees.expressions.Expression;
+import org.apache.doris.nereids.trees.expressions.Literal;
+
+import com.google.common.collect.Lists;
+
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Expression rewrite helper class.
  */
 public class RewriteHelper {
 
+    public static final Literal TRUE_LITERAL = new Literal(true);
+    public static final Literal FALSE_LITERAL = new Literal(false);
+
     public static boolean isConstant(Expression expr) {
         return expr.isConstant();
+    }
+
+    public static List<Expression> extract(CompoundPredicate expr) {
+        List<Expression> result = Lists.newArrayList();
+        extract(expr.getOp(), expr, result);
+        return result;
+    }
+
+    private static void extract(CompoundPredicate.Op op, Expression expr, List<Expression> result) {
+        if (expr instanceof CompoundPredicate && ((CompoundPredicate) expr).getOp() == op) {
+            CompoundPredicate predicate = (CompoundPredicate) expr;
+            extract(op, predicate.left(), result);
+            extract(op, predicate.right(), result);
+        } else {
+            result.add(expr);
+        }
+    }
+
+    public static Expression compound(CompoundPredicate.Op operator, List<Expression> expressions) {
+
+        Objects.requireNonNull(expressions, "expressions is null");
+
+        if (expressions.size() == 0) {
+            if (operator == Op.AND) {
+                return new Literal(true);
+            }
+            if (operator == Op.OR) {
+                return new Literal(false);
+            }
+        }
+
+        if (expressions.size() == 1) {
+            return expressions.get(0);
+        }
+
+        List<Expression> distinctExpressions = Lists.newArrayList(new LinkedHashSet<>(expressions));
+        if (operator == Op.AND) {
+            if (distinctExpressions.contains(FALSE_LITERAL)) {
+                return FALSE_LITERAL;
+            }
+            distinctExpressions = distinctExpressions.stream().filter(p -> !p.equals(TRUE_LITERAL))
+                    .collect(Collectors.toList());
+        }
+
+        if (operator == Op.OR) {
+            if (distinctExpressions.contains(TRUE_LITERAL)) {
+                return TRUE_LITERAL;
+            }
+            distinctExpressions = distinctExpressions.stream().filter(p -> !p.equals(FALSE_LITERAL))
+                    .collect(Collectors.toList());
+        }
+
+        List<List<Expression>> partitions = Lists.partition(distinctExpressions, 2);
+        List<Expression> result = new LinkedList<>();
+
+        for (List<Expression> partition : partitions) {
+            if (partition.size() == 2) {
+                result.add(new CompoundPredicate(operator, partition.get(0), partition.get(1)));
+            }
+            if (partition.size() == 1) {
+                result.add(partition.get(0));
+            }
+        }
+
+        return compound(operator, result);
     }
 
 }

@@ -17,6 +17,7 @@
 
 package org.apache.doris.nereids.rules.expression.rewrite;
 
+import org.apache.doris.nereids.trees.expressions.BetweenPredicate;
 import org.apache.doris.nereids.trees.expressions.ComparisonPredicate;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.Literal;
@@ -38,6 +39,10 @@ public abstract class ExpressionVisitor<R, C> {
     }
 
     public R visitLiteral(Literal expr, C context) {
+        return visitExpression(expr, context);
+    }
+
+    public R visitBetweenPredicate(BetweenPredicate expr, C context) {
         return visitExpression(expr, context);
     }
 }

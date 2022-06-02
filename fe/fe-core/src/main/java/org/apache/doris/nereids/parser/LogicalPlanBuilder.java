@@ -19,6 +19,7 @@ package org.apache.doris.nereids.parser;
 
 
 import org.apache.doris.nereids.DorisParser;
+import org.apache.doris.nereids.DorisParser.BetweenContext;
 import org.apache.doris.nereids.DorisParser.BooleanLiteralContext;
 import org.apache.doris.nereids.DorisParser.ColumnReferenceContext;
 import org.apache.doris.nereids.DorisParser.ComparisonContext;
@@ -35,6 +36,7 @@ import org.apache.doris.nereids.DorisParser.NamedExpressionContext;
 import org.apache.doris.nereids.DorisParser.NamedExpressionSeqContext;
 import org.apache.doris.nereids.DorisParser.NotContext;
 import org.apache.doris.nereids.DorisParser.NullLiteralContext;
+import org.apache.doris.nereids.DorisParser.ParenthesizedExpressionContext;
 import org.apache.doris.nereids.DorisParser.PredicatedContext;
 import org.apache.doris.nereids.DorisParser.QualifiedNameContext;
 import org.apache.doris.nereids.DorisParser.QueryContext;
@@ -46,6 +48,9 @@ import org.apache.doris.nereids.DorisParser.StarContext;
 import org.apache.doris.nereids.DorisParser.StringLiteralContext;
 import org.apache.doris.nereids.DorisParser.TableNameContext;
 import org.apache.doris.nereids.DorisParser.WhereClauseContext;
+import org.apache.doris.nereids.DorisParser.ExpressionContext;
+import org.apache.doris.nereids.DorisParser.NotContext;
+import org.apache.doris.nereids.DorisParser.CompoundContext;
 import org.apache.doris.nereids.DorisParserBaseVisitor;
 import org.apache.doris.nereids.analyzer.UnboundAlias;
 import org.apache.doris.nereids.analyzer.UnboundRelation;
@@ -56,6 +61,8 @@ import org.apache.doris.nereids.operators.plans.logical.LogicalFilter;
 import org.apache.doris.nereids.operators.plans.logical.LogicalJoin;
 import org.apache.doris.nereids.operators.plans.logical.LogicalProject;
 import org.apache.doris.nereids.trees.expressions.Alias;
+import org.apache.doris.nereids.trees.expressions.BetweenPredicate;
+import org.apache.doris.nereids.trees.expressions.CompoundPredicate;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.GreaterThan;
@@ -393,6 +400,49 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             default:
                 return null;
         }
+    }
+
+    @Override
+    public Expression visitBetween(BetweenContext context) {
+        Expression expression = new BetweenPredicate(expression(context.cmp), expression(context.lower), expression(context.upper));
+        if (context.NOT() != null) {
+            expression = new Not(expression);
+        }
+        return expression;
+    }
+
+    @Override
+    public Expression visitCompound(CompoundContext ctx) {
+        Expression left = expression(ctx.left);
+        Expression right = expression(ctx.right);
+        TerminalNode operator = (TerminalNode) ctx.logicalOperator().getChild(0);
+        switch (operator.getSymbol().getType()) {
+            case DorisParser.AND:
+                return new CompoundPredicate(CompoundPredicate.Op.AND, left, right);
+            case DorisParser.OR:
+                return new CompoundPredicate(CompoundPredicate.Op.OR, left, right);
+            default:
+                return null;
+        }
+    }
+
+
+    /**
+     * Create a not expression.
+     * format: NOT Expression
+     * for example:
+     * not 1
+     * not 1=1
+     */
+    @Override
+    public Expression visitNot(NotContext ctx) {
+        Expression child = expression(ctx.booleanExpression());
+        return new Not(child);
+    }
+
+    @Override
+    public Expression visitParenthesizedExpression(ParenthesizedExpressionContext ctx) {
+        return expression(ctx.expression());
     }
 
     /**

@@ -24,6 +24,7 @@ import org.apache.doris.nereids.util.Utils;
 import com.google.common.collect.Lists;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Slot has not been bound.
@@ -75,5 +76,10 @@ public class UnboundSlot extends Slot {
         }
         UnboundSlot other = (UnboundSlot) o;
         return nameParts.containsAll(other.getNameParts());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nameParts.toArray());
     }
 }

@@ -27,7 +27,7 @@ public abstract class AbstractExpressionRewriteRule extends ExpressionVisitor<Ex
 
     @Override
     public Expression rewrite(Expression expr, ExpressionRewriteContext ctx) {
-        return (Expression) expr.accept(this, ctx);
+        return expr.accept(this, ctx);
     }
 
     @Override

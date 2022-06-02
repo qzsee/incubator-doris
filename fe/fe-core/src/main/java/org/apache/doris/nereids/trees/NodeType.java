@@ -43,6 +43,8 @@ public enum NodeType {
     ALIAS,
     COMPOUND,
 
+    BETWEEN,
+
     // pattern
     PATTERN,
 

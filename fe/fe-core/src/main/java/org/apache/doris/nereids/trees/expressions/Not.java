@@ -17,9 +17,14 @@
 
 package org.apache.doris.nereids.trees.expressions;
 
+import com.google.common.base.Preconditions;
 import org.apache.doris.nereids.exceptions.UnboundException;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionVisitor;
 import org.apache.doris.nereids.trees.NodeType;
+import org.apache.doris.nereids.trees.TreeNode;
+
+import java.util.List;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
@@ -68,4 +73,5 @@ public class Not<CHILD_TYPE extends Expression> extends Expression
     public String toString() {
         return "( not " + child() + ")";
     }
+
 }

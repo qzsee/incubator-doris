@@ -142,12 +142,14 @@ expression
 
 booleanExpression
     : NOT booleanExpression                                                                  #not
+    | cmp=booleanExpression NOT? BETWEEN lower=booleanExpression AND upper=booleanExpression #between
     | valueExpression                                                                        #predicated
     ;
 
 valueExpression
     : primaryExpression                                                                      #valueExpressionDefault
     | left=valueExpression comparisonOperator right=valueExpression                          #comparison
+    | left=valueExpression logicalOperator right=valueExpression                             #compound
     ;
 
 primaryExpression
@@ -157,6 +159,7 @@ primaryExpression
     | LEFT_PAREN query RIGHT_PAREN                                                             #subqueryExpression
     | identifier                                                                               #columnReference
     | base=primaryExpression DOT fieldName=identifier                                          #dereference
+    | LEFT_PAREN expression RIGHT_PAREN                                                        #parenthesizedExpression
     ;
 
 qualifiedName
@@ -172,6 +175,10 @@ constant
 
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE | NSEQ
+    ;
+
+logicalOperator
+    : AND | OR
     ;
 
 booleanValue
