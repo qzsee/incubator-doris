@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * Slot has not been bound.
  */
-public class UnboundSlot extends Slot {
+public class UnboundSlot extends Slot implements Unbound {
     private final List<String> nameParts;
 
     public UnboundSlot(List<String> nameParts) {
