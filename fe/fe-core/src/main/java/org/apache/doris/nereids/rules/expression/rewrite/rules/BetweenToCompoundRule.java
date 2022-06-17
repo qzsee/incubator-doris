@@ -30,7 +30,7 @@ public class BetweenToCompoundRule extends AbstractExpressionRewriteRule {
     }
 
     @Override
-    public Expression visitNotExpression(Not expr, ExpressionRewriteContext context) {
+    public Expression visitNot(Not expr, ExpressionRewriteContext context) {
         if (expr.child() instanceof BetweenPredicate) {
             BetweenPredicate between = (BetweenPredicate) expr.child();
             return new CompoundPredicate(

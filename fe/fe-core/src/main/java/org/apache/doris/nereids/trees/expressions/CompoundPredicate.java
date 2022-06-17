@@ -4,17 +4,13 @@ import com.google.common.base.Preconditions;
 import org.apache.doris.nereids.exceptions.UnboundException;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionVisitor;
 import org.apache.doris.nereids.trees.NodeType;
-import org.apache.doris.nereids.trees.TreeNode;
 import org.apache.doris.nereids.types.BooleanType;
 import org.apache.doris.nereids.types.DataType;
 
 import java.util.List;
 import java.util.Objects;
 
-public class CompoundPredicate <LEFT_CHILD_TYPE extends Expression, RIGHT_CHILD_TYPE extends Expression>
-    extends Expression<CompoundPredicate<LEFT_CHILD_TYPE, RIGHT_CHILD_TYPE>> implements
-    BinaryExpression<CompoundPredicate<LEFT_CHILD_TYPE, RIGHT_CHILD_TYPE>, LEFT_CHILD_TYPE, RIGHT_CHILD_TYPE>{
-
+public class CompoundPredicate<LEFT_CHILD_TYPE extends Expression, RIGHT_CHILD_TYPE extends Expression> extends Expression implements BinaryExpression<LEFT_CHILD_TYPE, RIGHT_CHILD_TYPE>{
 
     public enum Op {
         AND,
@@ -79,8 +75,8 @@ public class CompoundPredicate <LEFT_CHILD_TYPE extends Expression, RIGHT_CHILD_
     }
 
     @Override
-    public CompoundPredicate newChildren(List<TreeNode> children) {
+    public CompoundPredicate<Expression, Expression> withChildren(List<Expression> children) {
         Preconditions.checkArgument(children.size() == 2);
-        return new CompoundPredicate(op, (Expression) children.get(0), (Expression) children.get(1));
+        return new CompoundPredicate<>(op, children.get(0), children.get(1));
     }
 }

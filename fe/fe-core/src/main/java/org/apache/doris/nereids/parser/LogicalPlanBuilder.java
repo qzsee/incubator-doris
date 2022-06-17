@@ -407,7 +407,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     public Expression visitBetween(BetweenContext context) {
         Expression expression = new BetweenPredicate(expression(context.cmp), expression(context.lower), expression(context.upper));
         if (context.NOT() != null) {
-            expression = new Not(expression);
+            expression = new Not<>(expression);
         }
         return expression;
     }
@@ -427,19 +427,6 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
         }
     }
 
-
-    /**
-     * Create a not expression.
-     * format: NOT Expression
-     * for example:
-     * not 1
-     * not 1=1
-     */
-    @Override
-    public Expression visitNot(NotContext ctx) {
-        Expression child = expression(ctx.booleanExpression());
-        return new Not(child);
-    }
 
     @Override
     public Expression visitParenthesizedExpression(ParenthesizedExpressionContext ctx) {

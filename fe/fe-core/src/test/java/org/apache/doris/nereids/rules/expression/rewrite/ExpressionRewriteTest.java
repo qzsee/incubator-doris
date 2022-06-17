@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the notICE file
 // distributed with this work for additional information
@@ -19,48 +18,26 @@
 package org.apache.doris.nereids.rules.expression.rewrite;
 
 import org.apache.doris.nereids.parser.SqlParser;
-import org.apache.doris.nereids.rules.expression.rewrite.rules.NormalizeExpressionRule;
-import org.apache.doris.nereids.rules.expression.rewrite.rules.SimplifyNotExprRule;
-=======
-package org.apache.doris.nereids.rules.expression.rewrite;
-
 import org.apache.doris.nereids.rules.expression.rewrite.rules.BetweenToCompoundRule;
 import org.apache.doris.nereids.rules.expression.rewrite.rules.DistinctPredicatesRule;
 import org.apache.doris.nereids.rules.expression.rewrite.rules.ExtractCommonFactorRule;
->>>>>>> 3752c407e (add expr rewrite)
+import org.apache.doris.nereids.rules.expression.rewrite.rules.NormalizeExpressionRule;
+import org.apache.doris.nereids.rules.expression.rewrite.rules.SimplifyNotExprRule;
 import org.apache.doris.nereids.trees.expressions.Expression;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-<<<<<<< HEAD
 /**
  * all expr rewrite rule test case.
  */
 public class ExpressionRewriteTest {
-=======
-
-public class ExpressionRewriteTest {
-
->>>>>>> 3752c407e (add expr rewrite)
     private static final SqlParser PARSER = new SqlParser();
     private ExpressionRewriter rewriter;
 
     @Test
-<<<<<<< HEAD
-    public void testNotRewrite() {
-        rewriter = new ExpressionRewriter(SimplifyNotExprRule.INSTANCE);
-
-        assertRewrite("not x > y", "x <= y");
-        assertRewrite("not x < y", "x >= y");
-        assertRewrite("not x >= y", "x < y");
-        assertRewrite("not x <= y", "x > y");
-        assertRewrite("not x = y", "not x = y");
-        assertRewrite("not not x > y", "x > y");
-        assertRewrite("not not not x > y", "x <= y");
-=======
     public void testnotExpressionRewrite() {
-        rewriter = new ExpressionRewriter(NotExpressionRule.INSTANCE);
+        rewriter = new ExpressionRewriter(SimplifyNotExprRule.INSTANCE);
 
         assertRewrite("not x", "not x");
         assertRewrite("not not x", "x");
@@ -79,7 +56,6 @@ public class ExpressionRewriteTest {
         assertRewrite("not (a and b and (c or d))", "(not a) or (not b) or ((not c) and (not d))");
          */
 
->>>>>>> 3752c407e (add expr rewrite)
     }
 
     @Test
@@ -91,17 +67,6 @@ public class ExpressionRewriteTest {
         assertRewrite("2 < x", "x > 2");
         assertRewrite("2 <= x", "x >= 2");
         assertRewrite("2 = x", "x = 2");
-<<<<<<< HEAD
-    }
-
-    private void assertRewrite(String expression, String expected) {
-        Expression needRewriteExpression = PARSER.createExpression(expression);
-        Expression expectedExpression = PARSER.createExpression(expected);
-        Expression rewrittenExpression = rewriter.rewrite(needRewriteExpression);
-        Assert.assertEquals(expectedExpression, rewrittenExpression);
-    }
-}
-=======
         assertRewrite("2 = 2", "2 = 2");
         assertRewrite("y = x", "y = x");
     }
@@ -190,4 +155,3 @@ public class ExpressionRewriteTest {
     }
 
 }
->>>>>>> 3752c407e (add expr rewrite)

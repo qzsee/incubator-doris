@@ -6,8 +6,7 @@ import org.apache.doris.nereids.trees.NodeType;
 import java.util.Objects;
 
 
-public class BetweenPredicate<CMP_CHILD_TYPE extends Expression, LOWER_CHILD_TYPE extends Expression, UPPER_CHILD_TYPE extends Expression>
-        extends Expression<BetweenPredicate<CMP_CHILD_TYPE, LOWER_CHILD_TYPE, UPPER_CHILD_TYPE>> {
+public class BetweenPredicate extends Expression {
 
     private final Expression cmp;
     private final Expression lower;
