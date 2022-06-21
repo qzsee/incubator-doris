@@ -21,7 +21,6 @@ import org.apache.doris.nereids.properties.LogicalProperties;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.plans.Plan;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -38,7 +37,7 @@ public class Memo {
     private Group root;
 
     public void initialize(Plan node) {
-        root = copyIn(node, null, false).getParent();
+        root = copyIn(node, null).getParent();
     }
 
     public Group getRoot() {
@@ -51,21 +50,21 @@ public class Memo {
      *
      * @param node {@link Plan} or {@link Expression} to be added
      * @param target target group to add node. null to generate new Group
-     * @param rewrite whether to rewrite the node to the target group
      * @return Reference of node in Memo
      */
-    public GroupExpression copyIn(Plan node, Group target, boolean rewrite) {
-        Preconditions.checkArgument(!rewrite || target != null);
+    public GroupExpression copyIn(Plan node, Group target) {
         List<Group> childrenGroups = Lists.newArrayList();
         for (Plan child : node.children()) {
-            childrenGroups.add(copyIn(child, null, rewrite).getParent());
+            Group group;
+            if (node.getGroupExpression().isPresent()) {
+                group = node.getGroupExpression().get().getParent();
+            } else {
+                group = copyIn(child, null).getParent();
+            }
+            childrenGroups.add(group);
         }
-        if (node.getGroupExpression().isPresent() && groupExpressions.containsKey(node.getGroupExpression().get())) {
-            return node.getGroupExpression().get();
-        }
-        GroupExpression newGroupExpression = new GroupExpression(node.getOperator());
-        newGroupExpression.setChildren(childrenGroups);
-        return insertOrRewriteGroupExpression(newGroupExpression, target, rewrite, node.getLogicalProperties());
+        GroupExpression newGroupExpression = new GroupExpression(node.getOperator(), childrenGroups);
+        return insertGroupExpression(newGroupExpression, target, node.getLogicalProperties());
         // TODO: need to derive logical property if generate new group. currently we not copy logical plan into
     }
 
@@ -77,11 +76,9 @@ public class Memo {
      *
      * @param groupExpression groupExpression to insert
      * @param target target group to insert or rewrite groupExpression
-     * @param rewrite whether to rewrite the groupExpression to target group
      * @return existing groupExpression in memo or newly generated groupExpression
      */
-    private GroupExpression insertOrRewriteGroupExpression(GroupExpression groupExpression, Group target,
-                                                           boolean rewrite, LogicalProperties logicalProperties) {
+    private GroupExpression insertGroupExpression(GroupExpression groupExpression, Group target, LogicalProperties logicalProperties) {
         GroupExpression existedGroupExpression = groupExpressions.get(groupExpression);
         if (existedGroupExpression != null) {
             if (target != null && !target.getGroupId().equals(existedGroupExpression.getParent().getGroupId())) {
@@ -89,17 +86,11 @@ public class Memo {
             }
             return existedGroupExpression;
         }
-        if (target != null) {
-            if (rewrite) {
-                GroupExpression oldExpression = target.rewriteLogicalExpression(groupExpression, logicalProperties);
-                groupExpressions.remove(oldExpression);
-            } else {
-                target.addGroupExpression(groupExpression);
-            }
+        if (target == null) {
+            target = new Group(groupExpression, logicalProperties);
+            groups.add(target);
         } else {
-            Group group = new Group(groupExpression, logicalProperties);
-            Preconditions.checkArgument(!groups.contains(group), "new group with already exist output");
-            groups.add(group);
+            target.addGroupExpression(groupExpression);
         }
         groupExpressions.put(groupExpression, groupExpression);
         return groupExpression;
@@ -154,5 +145,11 @@ public class Memo {
             destination.addGroupExpression(groupExpression);
         }
         groups.remove(source);
+    }
+
+    public void replaceGroupExpression(Plan node, Group targetGroup) {
+        groupExpressions.remove(targetGroup.getLogicalExpression());
+        targetGroup.getLogicalExpressions().clear();
+        copyIn(node, targetGroup);
     }
 }

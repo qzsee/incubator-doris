@@ -64,7 +64,7 @@ public class RewriteTopDownJob extends Job<Plan> {
                 Preconditions.checkArgument(afters.size() == 1);
                 Plan after = afters.get(0);
                 if (after != before) {
-                    context.getOptimizerContext().getMemo().copyIn(after, group, rule.isRewrite());
+                    context.getOptimizerContext().getMemo().replaceGroupExpression(after, group);
                     pushTask(new RewriteTopDownJob(group, rules, context));
                     return;
                 }

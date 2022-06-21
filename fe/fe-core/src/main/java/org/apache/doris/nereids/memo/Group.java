@@ -51,13 +51,8 @@ public class Group {
      * @param groupExpression first {@link GroupExpression} in this Group
      */
     public Group(GroupExpression groupExpression, LogicalProperties logicalProperties) {
-        if (groupExpression.getOperator() instanceof LogicalOperator) {
-            this.logicalExpressions.add(groupExpression);
-        } else {
-            this.physicalExpressions.add(groupExpression);
-        }
+        addGroupExpression(groupExpression);
         this.logicalProperties = logicalProperties;
-        groupExpression.setParent(this);
     }
 
     public GroupId getGroupId() {

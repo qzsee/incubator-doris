@@ -23,11 +23,16 @@ import org.apache.doris.nereids.trees.expressions.CompoundPredicate;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.Literal;
 import org.apache.doris.nereids.trees.expressions.Not;
+import org.apache.doris.nereids.trees.expressions.Slot;
 
 /**
  * Use the visitor pattern to iterate over all expressions for expression rewriting.
  */
 public abstract class ExpressionVisitor<R, C> {
+
+    public R process(Expression exr, C context) {
+        return exr.accept(this, context);
+    }
 
     public abstract R visitExpression(Expression expr, C context);
 
@@ -48,6 +53,10 @@ public abstract class ExpressionVisitor<R, C> {
     }
 
     public R visitBetweenPredicate(BetweenPredicate expr, C context) {
+        return visitExpression(expr, context);
+    }
+
+    public R visitSlot(Slot expr, C context) {
         return visitExpression(expr, context);
     }
 }

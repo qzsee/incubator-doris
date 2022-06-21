@@ -72,7 +72,7 @@ public class RewriteBottomUpJob extends Job<Plan> {
                 Preconditions.checkArgument(afters.size() == 1);
                 Plan after = afters.get(0);
                 if (after != before) {
-                    context.getOptimizerContext().getMemo().copyIn(after, group, rule.isRewrite());
+                    context.getOptimizerContext().getMemo().copyIn(after, group);
                     pushTask(new RewriteBottomUpJob(group, rules, context, false));
                     return;
                 }

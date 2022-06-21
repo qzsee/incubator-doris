@@ -18,11 +18,10 @@ package org.apache.doris.nereids.rules.expression.rewrite.rules;
 
 import org.apache.doris.nereids.rules.expression.rewrite.AbstractExpressionRewriteRule;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionRewriteContext;
-import org.apache.doris.nereids.rules.expression.rewrite.RewriteHelper;
+import org.apache.doris.nereids.rules.expression.rewrite.ExpressionUtils;
 import org.apache.doris.nereids.trees.NodeType;
 import org.apache.doris.nereids.trees.expressions.ComparisonPredicate;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
-import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.GreaterThan;
 import org.apache.doris.nereids.trees.expressions.GreaterThanEqual;
 import org.apache.doris.nereids.trees.expressions.LessThan;
@@ -40,7 +39,7 @@ public class NormalizeExpressionRule extends AbstractExpressionRewriteRule {
     @Override
     public Expression visitComparisonPredicate(ComparisonPredicate expr, ExpressionRewriteContext context) {
 
-        if (RewriteHelper.isConstant(expr.left()) && !RewriteHelper.isConstant(expr.right())) {
+        if (ExpressionUtils.isConstant(expr.left()) && !ExpressionUtils.isConstant(expr.right())) {
             NodeType exprType = expr.getType();
             switch (exprType) {
                 case EQUAL_TO:

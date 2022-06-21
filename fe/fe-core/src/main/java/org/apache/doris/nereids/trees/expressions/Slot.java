@@ -17,6 +17,7 @@
 
 package org.apache.doris.nereids.trees.expressions;
 
+import org.apache.doris.nereids.rules.expression.rewrite.ExpressionVisitor;
 import org.apache.doris.nereids.trees.NodeType;
 
 /**
@@ -42,5 +43,9 @@ public abstract class Slot extends NamedExpression implements LeafExpression {
 
     public int getId() {
         return id;
+    }
+
+    public <R, C> R accept(ExpressionVisitor<R, C> visitor, C context) {
+        return visitor.visitSlot(this, context);
     }
 }

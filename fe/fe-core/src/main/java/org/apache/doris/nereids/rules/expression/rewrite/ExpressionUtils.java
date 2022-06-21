@@ -14,6 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
 package org.apache.doris.nereids.rules.expression.rewrite;
 
 import org.apache.doris.nereids.trees.expressions.CompoundPredicate;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Expression rewrite helper class.
  */
-public class RewriteHelper {
+public class ExpressionUtils {
 
     public static final Literal TRUE_LITERAL = new Literal(true);
     public static final Literal FALSE_LITERAL = new Literal(false);
@@ -41,9 +42,22 @@ public class RewriteHelper {
         return expr.isConstant();
     }
 
+    public static List<Expression> extractConjunct(Expression expr) {
+        return extract(Op.AND, expr);
+    }
+
+
+    public static List<Expression> extractDisjunct(Expression expr) {
+        return extract(Op.OR, expr);
+    }
+
     public static List<Expression> extract(CompoundPredicate expr) {
+        return extract(expr.getOp(), expr);
+    }
+
+    private static List<Expression> extract(Op op, Expression expr) {
         List<Expression> result = Lists.newArrayList();
-        extract(expr.getOp(), expr, result);
+        extract(op, expr, result);
         return result;
     }
 
@@ -55,6 +69,15 @@ public class RewriteHelper {
         } else {
             result.add(expr);
         }
+    }
+
+
+    public static Expression add(List<Expression> expressions) {
+        return compound(Op.AND, expressions);
+    }
+
+    public static Expression or(List<Expression> expressions) {
+        return compound(Op.OR, expressions);
     }
 
     public static Expression compound(CompoundPredicate.Op operator, List<Expression> expressions) {
@@ -107,3 +130,6 @@ public class RewriteHelper {
     }
 
 }
+
+
+

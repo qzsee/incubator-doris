@@ -65,7 +65,7 @@ public class GroupExpressionMatchingTest implements Plans {
 
         UnboundRelation anotherUnboundRelation = new UnboundRelation(Lists.newArrayList("test2"));
         Plan anotherLeaf = plan(anotherUnboundRelation);
-        memo.copyIn(anotherLeaf, memo.getRoot().getLogicalExpression().child(0), false);
+        memo.copyIn(anotherLeaf, memo.getRoot().getLogicalExpression().child(0));
 
         GroupExpressionMatching groupExpressionMatching
                 = new GroupExpressionMatching(pattern, memo.getRoot().getLogicalExpression());
@@ -98,7 +98,7 @@ public class GroupExpressionMatchingTest implements Plans {
 
         UnboundRelation anotherUnboundRelation = new UnboundRelation(Lists.newArrayList("test2"));
         Plan anotherLeaf = plan(anotherUnboundRelation);
-        memo.copyIn(anotherLeaf, memo.getRoot().getLogicalExpression().child(0), false);
+        memo.copyIn(anotherLeaf, memo.getRoot().getLogicalExpression().child(0));
 
         GroupExpressionMatching groupExpressionMatching
                 = new GroupExpressionMatching(pattern, memo.getRoot().getLogicalExpression());

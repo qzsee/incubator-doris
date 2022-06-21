@@ -2,7 +2,7 @@ package org.apache.doris.nereids.rules.expression.rewrite.rules;
 
 import org.apache.doris.nereids.rules.expression.rewrite.AbstractExpressionRewriteRule;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionRewriteContext;
-import org.apache.doris.nereids.rules.expression.rewrite.RewriteHelper;
+import org.apache.doris.nereids.rules.expression.rewrite.ExpressionUtils;
 import org.apache.doris.nereids.trees.expressions.CompoundPredicate;
 import org.apache.doris.nereids.trees.expressions.Expression;
 
@@ -18,10 +18,10 @@ public class DistinctPredicatesRule extends AbstractExpressionRewriteRule {
 
     @Override
     public Expression visitCompoundPredicate(CompoundPredicate expr, ExpressionRewriteContext context) {
-        List<Expression> extractExpressions = RewriteHelper.extract(expr);
+        List<Expression> extractExpressions = ExpressionUtils.extract(expr);
         Set<Expression> distinctExpressions = new LinkedHashSet<>(extractExpressions);
         if (distinctExpressions.size() != extractExpressions.size()) {
-            return RewriteHelper.compound(expr.getOp(), Lists.newArrayList(distinctExpressions));
+            return ExpressionUtils.compound(expr.getOp(), Lists.newArrayList(distinctExpressions));
         }
         return expr;
     }

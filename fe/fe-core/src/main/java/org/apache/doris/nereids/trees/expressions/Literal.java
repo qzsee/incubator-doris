@@ -107,6 +107,11 @@ public class Literal extends Expression implements LeafExpression {
         return visitor.visitLiteral(this, context);
     }
 
+
+    public static Literal of(Object value) {
+        return new Literal(value);
+    }
+
     @Override
     public String sql() {
         return null;
