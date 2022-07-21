@@ -64,11 +64,12 @@ public class ExpressionRewriteTest {
     public void testNormalizeExpressionRewrite() {
         executor = new ExpressionRuleExecutor(NormalizeBinaryPredicatesRule.INSTANCE);
 
+        assertRewrite("1 = 1", "1 = 1");
         assertRewrite("2 > x", "x < 2");
-        assertRewrite("2 >= x", "x <= 2");
-        assertRewrite("2 < x", "x > 2");
-        assertRewrite("2 <= x", "x >= 2");
-        assertRewrite("2 = x", "x = 2");
+        assertRewrite("y > x", "y > x");
+        assertRewrite("1 + 2 > x", "x < 1 + 2");
+        assertRewrite("1 + 2 > x + 1", "x + 1 < 1 + 2");
+        assertRewrite("y + 2 > x + 1", "y + 2 > x + 1");
     }
 
     @Test
