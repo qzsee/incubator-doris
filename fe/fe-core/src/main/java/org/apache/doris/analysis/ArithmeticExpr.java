@@ -645,7 +645,42 @@ public class ArithmeticExpr extends Expr {
         if (op == Operator.BITNOT) {
             fn = getBuiltinFunction(op.getName(), collectChildReturnTypes(), Function.CompareMode.IS_SUPERTYPE_OF);
         } else {
-            fn = getBuiltinFunction(op.name, collectChildReturnTypes(), Function.CompareMode.IS_IDENTICAL);
+            Type t1 = getChild(0).getType().getNumResultType();
+            Type t2 = getChild(1).getType().getNumResultType();
+            // Find result type of this operator
+            Type commonType = Type.INVALID;
+            String fnName = op.getName();
+            switch (op) {
+                case MULTIPLY:
+                case ADD:
+                case SUBTRACT:
+                case MOD:
+                    // numeric ops must be promoted to highest-resolution type
+                    // (otherwise we can't guarantee that a <op> b won't overflow/underflow)
+                    commonType = findCommonType(t1, t2);
+                    break;
+                case DIVIDE:
+                    commonType = findCommonType(t1, t2);
+                    if (commonType.getPrimitiveType() == PrimitiveType.BIGINT
+                            || commonType.getPrimitiveType() == PrimitiveType.LARGEINT) {
+                        commonType = Type.DOUBLE;
+                    }
+                    break;
+                case INT_DIVIDE:
+                case BITAND:
+                case BITOR:
+                case BITXOR:
+                    // Must be bigint
+                    commonType = Type.BIGINT;
+                    break;
+                default:
+                    // the programmer forgot to deal with a case
+                    Preconditions.checkState(false,
+                            "Unknown arithmetic operation " + op.toString() + " in: " + this.toSql());
+                    break;
+            }
+            type = castBinaryOp(commonType);
+            fn = getBuiltinFunction(fnName, collectChildReturnTypes(), Function.CompareMode.IS_IDENTICAL);
         }
         if (fn == null) {
             Preconditions.checkState(false, String.format("No match for op with operand types. %s", toSql()));

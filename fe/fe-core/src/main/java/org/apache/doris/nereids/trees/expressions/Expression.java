@@ -130,6 +130,10 @@ public abstract class Expression extends AbstractTreeNode<Expression> {
         throw new RuntimeException("Do not implement uncheckedCastTo");
     }
 
+    public boolean isLiteral() {
+        return this instanceof Literal;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

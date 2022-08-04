@@ -22,7 +22,13 @@ import org.apache.doris.nereids.exceptions.UnboundException;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.shape.LeafExpression;
 import org.apache.doris.nereids.trees.expressions.visitor.ExpressionVisitor;
+import org.apache.doris.nereids.types.BigIntType;
+import org.apache.doris.nereids.types.BooleanType;
 import org.apache.doris.nereids.types.DataType;
+import org.apache.doris.nereids.types.IntegerType;
+import org.apache.doris.nereids.types.StringType;
+
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Objects;
 
@@ -80,6 +86,36 @@ public abstract class Literal extends Expression implements LeafExpression {
     @Override
     public <R, C> R accept(ExpressionVisitor<R, C> visitor, C context) {
         return visitor.visitLiteral(this, context);
+    }
+
+    public boolean isNull() {
+        return this instanceof NullLiteral;
+    }
+
+    public int compareLiteral(Literal other) {
+        if (isNull() && other.isNull()) {
+            return 0;
+        }
+        DataType oType = other.getDataType();
+        DataType type = getDataType();
+
+        if (!type.equals(oType)) {
+            throw new RuntimeException("data type not equal!");
+        }
+
+        if (type instanceof BooleanType) {
+            return Boolean.compare((Boolean) getValue(), (Boolean) other.getValue());
+        }
+        if (type instanceof IntegerType) {
+            return Integer.compare((Integer) getValue(), (Integer) other.getValue());
+        }
+        if (type instanceof BigIntType) {
+            return Long.compare((Long) getValue(), (Long) other.getValue());
+        }
+        if (type instanceof StringType) {
+            return StringUtils.compare((String) getValue(), (String) getValue());
+        }
+        return -1;
     }
 
     @Override

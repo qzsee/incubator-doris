@@ -22,6 +22,7 @@ import org.apache.doris.analysis.LiteralExpr;
 import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.nereids.trees.expressions.visitor.ExpressionVisitor;
+import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.nereids.types.IntegerType;
 
 /**
@@ -29,15 +30,20 @@ import org.apache.doris.nereids.types.IntegerType;
  */
 public class IntegerLiteral extends Literal {
 
-    private final int value;
+    private final long value;
 
-    public IntegerLiteral(int value) {
+    public IntegerLiteral(long value) {
         super(IntegerType.INSTANCE);
         this.value = value;
     }
 
+    public IntegerLiteral(long value, DataType type) {
+        super(type);
+        this.value = value;
+    }
+
     @Override
-    public Integer getValue() {
+    public Long getValue() {
         return value;
     }
 
