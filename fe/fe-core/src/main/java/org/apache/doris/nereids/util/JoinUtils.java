@@ -19,7 +19,10 @@ package org.apache.doris.nereids.util;
 
 import org.apache.doris.common.Pair;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
+import org.apache.doris.nereids.trees.expressions.ExprId;
 import org.apache.doris.nereids.trees.expressions.Expression;
+import org.apache.doris.nereids.trees.expressions.NamedExpression;
+import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.SlotReference;
 import org.apache.doris.nereids.trees.plans.JoinType;
 import org.apache.doris.nereids.trees.plans.Plan;
@@ -32,6 +35,7 @@ import com.google.common.collect.Lists;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Utils for join
@@ -62,7 +66,7 @@ public class JoinUtils {
         List<Expression> conjunctList = ExpressionUtils.extractConjunction(onCondition);
         for (Expression predicate : conjunctList) {
             if (isEqualTo(leftSlots, rightSlots, predicate)) {
-                eqConjuncts.add((EqualTo) predicate);
+                eqConjuncts.add(swapEqualToForChildrenOrder((EqualTo) predicate, leftSlots));
             }
         }
         return eqConjuncts;
@@ -85,6 +89,16 @@ public class JoinUtils {
         Set<SlotReference> rightSlotsSet = new HashSet<>(rightSlots);
         return (leftSlotsSet.containsAll(leftUsed) && rightSlotsSet.containsAll(rightUsed))
                 || (leftSlotsSet.containsAll(rightUsed) && rightSlotsSet.containsAll(leftUsed));
+    }
+
+    private static EqualTo swapEqualToForChildrenOrder(EqualTo equalTo, List<SlotReference> leftOutput) {
+        Set<ExprId> leftSlots = SlotExtractor.extractSlot(equalTo.left()).stream()
+                .map(NamedExpression::getExprId).collect(Collectors.toSet());
+        if (leftOutput.stream().map(NamedExpression::getExprId).collect(Collectors.toSet()).containsAll(leftSlots)) {
+            return equalTo;
+        } else {
+            return new EqualTo(equalTo.right(), equalTo.left());
+        }
     }
 
     /**

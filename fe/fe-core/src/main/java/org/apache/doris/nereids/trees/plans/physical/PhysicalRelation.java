@@ -19,7 +19,9 @@ package org.apache.doris.nereids.trees.plans.physical;
 
 import org.apache.doris.nereids.memo.GroupExpression;
 import org.apache.doris.nereids.properties.LogicalProperties;
+import org.apache.doris.nereids.rules.rewrite.physical.RuntimeFilter;
 import org.apache.doris.nereids.trees.expressions.Expression;
+import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.PlanType;
 import org.apache.doris.nereids.trees.plans.algebra.Scan;
 import org.apache.doris.nereids.trees.plans.visitor.PlanVisitor;
@@ -37,6 +39,8 @@ public abstract class PhysicalRelation extends PhysicalLeaf implements Scan {
 
     protected final List<String> qualifier;
 
+    protected final List<RuntimeFilter> runtimeFilters;
+
     /**
      * Constructor for PhysicalScan.
      *
@@ -45,12 +49,23 @@ public abstract class PhysicalRelation extends PhysicalLeaf implements Scan {
      */
     public PhysicalRelation(PlanType type, List<String> qualifier, Optional<GroupExpression> groupExpression,
                             LogicalProperties logicalProperties) {
+        this(type, qualifier, groupExpression, logicalProperties, ImmutableList.of());
+    }
+
+    public PhysicalRelation(PlanType type, List<String> qualifier, Optional<GroupExpression> groupExpression,
+            LogicalProperties logicalProperties, List<RuntimeFilter> runtimeFilters) {
         super(type, groupExpression, logicalProperties);
         this.qualifier = Objects.requireNonNull(qualifier, "qualifier can not be null");
+        this.runtimeFilters = runtimeFilters;
     }
 
     public List<String> getQualifier() {
         return qualifier;
+    }
+
+
+    public Plan addRuntimeFilter(List<RuntimeFilter> filters) {
+        throw new RuntimeException("xxxx");
     }
 
     @Override

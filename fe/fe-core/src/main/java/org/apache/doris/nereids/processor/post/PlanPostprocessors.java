@@ -18,6 +18,7 @@
 package org.apache.doris.nereids.processor.post;
 
 import org.apache.doris.nereids.CascadesContext;
+import org.apache.doris.nereids.rules.rewrite.physical.GenerateRuntimeFilter;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalPlan;
 
 import com.google.common.collect.ImmutableList;
@@ -45,6 +46,6 @@ public class PlanPostprocessors {
 
     public List<PlanPostprocessor> getProcessors() {
         // add processor if we need
-        return ImmutableList.of();
+        return ImmutableList.of(new GenerateRuntimeFilter());
     }
 }

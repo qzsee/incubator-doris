@@ -19,6 +19,7 @@ package org.apache.doris.nereids.trees.plans.physical;
 
 import org.apache.doris.nereids.memo.GroupExpression;
 import org.apache.doris.nereids.properties.LogicalProperties;
+import org.apache.doris.nereids.rules.rewrite.physical.RuntimeFilter;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.plans.JoinType;
 import org.apache.doris.nereids.trees.plans.Plan;
@@ -27,6 +28,7 @@ import org.apache.doris.nereids.trees.plans.algebra.Join;
 
 import com.google.common.collect.ImmutableList;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -42,6 +44,8 @@ public abstract class AbstractPhysicalJoin<
 
     protected final Optional<Expression> condition;
 
+    protected final List<RuntimeFilter> runtimeFilters;
+
     /**
      * Constructor of PhysicalJoin.
      *
@@ -51,9 +55,16 @@ public abstract class AbstractPhysicalJoin<
     public AbstractPhysicalJoin(PlanType type, JoinType joinType, Optional<Expression> condition,
             Optional<GroupExpression> groupExpression, LogicalProperties logicalProperties,
             LEFT_CHILD_TYPE leftChild, RIGHT_CHILD_TYPE rightChild) {
+        this(type, joinType, condition, groupExpression, logicalProperties, leftChild, rightChild, new ArrayList<>());
+    }
+
+    public AbstractPhysicalJoin(PlanType type, JoinType joinType, Optional<Expression> condition,
+            Optional<GroupExpression> groupExpression, LogicalProperties logicalProperties,
+            LEFT_CHILD_TYPE leftChild, RIGHT_CHILD_TYPE rightChild, List<RuntimeFilter> runtimeFilters) {
         super(type, groupExpression, logicalProperties, leftChild, rightChild);
         this.joinType = Objects.requireNonNull(joinType, "joinType can not be null");
         this.condition = Objects.requireNonNull(condition, "condition can not be null");
+        this.runtimeFilters = runtimeFilters;
     }
 
     public JoinType getJoinType() {
@@ -67,6 +78,10 @@ public abstract class AbstractPhysicalJoin<
     @Override
     public List<Expression> getExpressions() {
         return condition.<List<Expression>>map(ImmutableList::of).orElseGet(ImmutableList::of);
+    }
+
+    public Plan addRuntimeFilter(List<RuntimeFilter> filter) {
+        throw new RuntimeException("xxx");
     }
 
     @Override

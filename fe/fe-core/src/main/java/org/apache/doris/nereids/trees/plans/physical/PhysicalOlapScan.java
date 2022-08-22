@@ -22,11 +22,13 @@ import org.apache.doris.catalog.Partition;
 import org.apache.doris.nereids.memo.GroupExpression;
 import org.apache.doris.nereids.properties.DistributionSpec;
 import org.apache.doris.nereids.properties.LogicalProperties;
+import org.apache.doris.nereids.rules.rewrite.physical.RuntimeFilter;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.PlanType;
 import org.apache.doris.nereids.trees.plans.visitor.PlanVisitor;
 import org.apache.doris.nereids.util.Utils;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import java.util.List;
@@ -52,7 +54,12 @@ public class PhysicalOlapScan extends PhysicalRelation {
      */
     public PhysicalOlapScan(OlapTable olapTable, List<String> qualifier, DistributionSpec distributionSpec,
             Optional<GroupExpression> groupExpression, LogicalProperties logicalProperties) {
-        super(PlanType.PHYSICAL_OLAP_SCAN, qualifier, groupExpression, logicalProperties);
+        this(olapTable, qualifier, distributionSpec, groupExpression, logicalProperties, ImmutableList.of());
+    }
+
+    public PhysicalOlapScan(OlapTable olapTable, List<String> qualifier, DistributionSpec distributionSpec,
+            Optional<GroupExpression> groupExpression, LogicalProperties logicalProperties, List<RuntimeFilter> runtimeFilters) {
+        super(PlanType.PHYSICAL_OLAP_SCAN, qualifier, groupExpression, logicalProperties, runtimeFilters);
         this.olapTable = olapTable;
         this.selectedIndexId = olapTable.getBaseIndexId();
         this.selectedTabletId = Lists.newArrayList();
@@ -84,10 +91,17 @@ public class PhysicalOlapScan extends PhysicalRelation {
     }
 
     @Override
+    public Plan addRuntimeFilter(List<RuntimeFilter> filters) {
+        List<RuntimeFilter> filers = ImmutableList.<RuntimeFilter>builder().addAll(runtimeFilters).addAll(filters).build();
+        return new PhysicalOlapScan(olapTable, qualifier, distributionSpec, Optional.empty(), logicalProperties, filers);
+    }
+
+    @Override
     public String toString() {
         return "PhysicalOlapScan (["
                 + Utils.qualifiedName(qualifier, olapTable.getName())
-                + "], [index id=" + selectedIndexId + "] )";
+                + "], [index id=" + selectedIndexId + "]"
+                + ", [RuntimeFilter =" + runtimeFilters + "])";
     }
 
     @Override
@@ -124,4 +138,5 @@ public class PhysicalOlapScan extends PhysicalRelation {
     public Plan withLogicalProperties(Optional<LogicalProperties> logicalProperties) {
         return new PhysicalOlapScan(olapTable, qualifier, distributionSpec, Optional.empty(), logicalProperties.get());
     }
+
 }

@@ -206,6 +206,18 @@ public final class RuntimeFilterGenerator {
     }
 
     /**
+     * Registers a runtime filter with the tuple id of every scan node that is a candidate
+     * destination node for that filter.
+     */
+    private void registerRuntimeFilter(RuntimeFilter filter) {
+        Map<TupleId, List<SlotId>> targetSlotsByTid = filter.getTargetSlots();
+        Preconditions.checkState(targetSlotsByTid != null && !targetSlotsByTid.isEmpty());
+        for (TupleId tupleId : targetSlotsByTid.keySet()) {
+            registerRuntimeFilter(filter, tupleId);
+        }
+    }
+
+    /**
      * Generates the runtime filters for a query by recursively traversing the distributed
      * plan tree rooted at 'root'. In the top-down traversal of the plan tree, candidate
      * runtime filters are generated from equi-join predicates assigned to hash-join nodes.
@@ -269,18 +281,6 @@ public final class RuntimeFilterGenerator {
             for (PlanNode childNode : root.getChildren()) {
                 generateFilters(childNode);
             }
-        }
-    }
-
-    /**
-     * Registers a runtime filter with the tuple id of every scan node that is a candidate
-     * destination node for that filter.
-     */
-    private void registerRuntimeFilter(RuntimeFilter filter) {
-        Map<TupleId, List<SlotId>> targetSlotsByTid = filter.getTargetSlots();
-        Preconditions.checkState(targetSlotsByTid != null && !targetSlotsByTid.isEmpty());
-        for (TupleId tupleId : targetSlotsByTid.keySet()) {
-            registerRuntimeFilter(filter, tupleId);
         }
     }
 
