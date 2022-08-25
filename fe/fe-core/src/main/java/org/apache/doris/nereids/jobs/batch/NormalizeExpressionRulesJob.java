@@ -35,7 +35,7 @@ public class NormalizeExpressionRulesJob extends BatchRulesJob {
         super(cascadesContext);
         rulesJob.addAll(ImmutableList.of(
                 topDownBatch(ImmutableList.of(
-                        new ExpressionNormalization()
+                        new ExpressionNormalization(cascadesContext.getConnectContext())
                 ))
         ));
     }

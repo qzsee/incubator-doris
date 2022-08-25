@@ -18,6 +18,7 @@
 package org.apache.doris.nereids.rules.expression.rewrite;
 
 import org.apache.doris.nereids.trees.expressions.Expression;
+import org.apache.doris.qe.ConnectContext;
 
 import com.google.common.collect.Lists;
 
@@ -32,14 +33,19 @@ public class ExpressionRuleExecutor {
     private final ExpressionRewriteContext ctx;
     private final List<ExpressionRewriteRule> rules;
 
+    public ExpressionRuleExecutor(List<ExpressionRewriteRule> rules, ConnectContext context) {
+        this.rules = rules;
+        this.ctx = new ExpressionRewriteContext(context);
+    }
+
     public ExpressionRuleExecutor(List<ExpressionRewriteRule> rules) {
         this.rules = rules;
-        this.ctx = new ExpressionRewriteContext();
+        this.ctx = new ExpressionRewriteContext(null);
     }
 
     public ExpressionRuleExecutor(ExpressionRewriteRule rule) {
         this.rules = Lists.newArrayList(rule);
-        this.ctx = new ExpressionRewriteContext();
+        this.ctx = new ExpressionRewriteContext(null);
     }
 
     public List<Expression> rewrite(List<Expression> exprs) {
