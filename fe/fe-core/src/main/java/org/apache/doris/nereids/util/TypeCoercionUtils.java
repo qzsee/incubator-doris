@@ -18,11 +18,13 @@
 package org.apache.doris.nereids.util;
 
 import org.apache.doris.nereids.annotation.Developing;
+import org.apache.doris.nereids.exceptions.AnalysisException;
 import org.apache.doris.nereids.trees.expressions.Cast;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.types.BigIntType;
 import org.apache.doris.nereids.types.BooleanType;
 import org.apache.doris.nereids.types.DataType;
+import org.apache.doris.nereids.types.DateTimeType;
 import org.apache.doris.nereids.types.DecimalType;
 import org.apache.doris.nereids.types.DoubleType;
 import org.apache.doris.nereids.types.FloatType;
@@ -114,6 +116,12 @@ public class TypeCoercionUtils {
                 returnType = DecimalType.SYSTEM_DEFAULT;
             } else if (expected instanceof NumericType) {
                 returnType = expected.defaultConcreteType();
+            } else if (expected instanceof DateTimeType) {
+                returnType = expected.defaultConcreteType();
+            }
+        } else if (input.isDate()) {
+            if (expected instanceof DateTimeType) {
+                returnType = expected.defaultConcreteType();
             }
         } else if (input instanceof PrimitiveType
                 && expected instanceof CharacterType) {
@@ -182,6 +190,33 @@ public class TypeCoercionUtils {
             tightestCommonType = StringType.INSTANCE;
         }
         return Optional.ofNullable(tightestCommonType);
+    }
+
+    public static DataType getNumResultType(DataType type) {
+        if (type.isTinyIntType() || type.isSmallIntType() || type.isIntType() || type.isBigIntType()) {
+            return BigIntType.INSTANCE;
+        } else if (type.isLargeIntType()) {
+            return LargeIntType.INSTANCE;
+        } else if (type.isFloatType() || type.isDoubleType()) {
+            return DoubleType.INSTANCE;
+        } else if (type.isDecimalType()) {
+            return DecimalType.SYSTEM_DEFAULT;
+        } else if (type.isNullType()) {
+            return NullType.INSTANCE;
+        }
+        throw new AnalysisException("no found appropriate data type.");
+    }
+
+    public static DataType findCommonType(DataType t1, DataType t2) {
+        if (t1.isDoubleType() || t2.isDoubleType()) {
+            return DoubleType.INSTANCE;
+        } else if (t1.isDecimalType() || t2.isDecimalType()) {
+            return DecimalType.SYSTEM_DEFAULT;
+        } else if (t1.isLargeIntType() || t2.isLargeIntType()) {
+            return LargeIntType.INSTANCE;
+        } else {
+            return BigIntType.INSTANCE;
+        }
     }
 
     /**

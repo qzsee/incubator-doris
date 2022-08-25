@@ -33,8 +33,6 @@ import org.apache.doris.nereids.trees.expressions.functions.Year;
 import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
 import org.apache.doris.nereids.trees.plans.logical.LogicalFilter;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
-import org.apache.doris.nereids.types.DateTimeType;
-import org.apache.doris.nereids.types.IntegerType;
 
 import com.google.common.collect.ImmutableList;
 
@@ -136,24 +134,14 @@ public class BindFunction implements AnalysisRuleFactory {
 
         @Override
         public Expression visitTimestampArithmetic(TimestampArithmetic arithmetic, Void context) {
-            String funcOpName = null;
+            String funcOpName;
             if (arithmetic.getFuncName() == null) {
                 funcOpName = String.format("%sS_%s", arithmetic.getTimeUnit(),
                         (arithmetic.getOp() == Operator.ADD) ? "ADD" : "SUB");
             } else {
                 funcOpName = arithmetic.getFuncName();
             }
-
-            Expression left = arithmetic.left();
-            Expression right = arithmetic.right();
-
-            if (!arithmetic.left().getDataType().isDateType()) {
-                left = arithmetic.left().castTo(DateTimeType.INSTANCE);
-            }
-            if (!arithmetic.right().getDataType().isIntType()) {
-                right = arithmetic.right().castTo(IntegerType.INSTANCE);
-            }
-            return arithmetic.withFuncName(funcOpName).withChildren(ImmutableList.of(left, right));
+            return arithmetic.withFuncName(funcOpName);
         }
     }
 }

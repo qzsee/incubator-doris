@@ -17,17 +17,17 @@
 
 package org.apache.doris.nereids.trees.expressions;
 
-import org.apache.doris.catalog.ScalarType;
-import org.apache.doris.catalog.Type;
+import org.apache.doris.catalog.Env;
 import org.apache.doris.common.AnalysisException;
+import org.apache.doris.nereids.trees.expressions.functions.AggregateFunction;
+import org.apache.doris.nereids.trees.expressions.functions.ExecutableFunctions;
+import org.apache.doris.nereids.trees.expressions.literal.Literal;
+import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
 import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.rewrite.FEFunction;
 import org.apache.doris.rewrite.FEFunctionList;
-import org.apache.doris.rewrite.FEFunctions;
 
 import com.google.common.collect.ImmutableMultimap;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -36,35 +36,64 @@ import java.util.Collection;
 import java.util.List;
 
 
-public class ExpressionEvaluator {
-    private static final Logger LOG = LogManager.getLogger(ExpressionEvaluator.class);
+public enum ExpressionEvaluator {
+    INSTANCE;
 
-    public static final ExpressionEvaluator INSTANCE = new ExpressionEvaluator();
-
-    public ExpressionEvaluator() {
+    ExpressionEvaluator() {
         registerFunctions();
     }
 
-    private ImmutableMultimap<String, FEFunctionInvoker> functions;
+    private ImmutableMultimap<String, FunctionInvoker> functions;
 
-    public Expression evaluate(Expression expression) {
+    public Expression eval(Expression expression) {
 
-        if (!expression.isConstant()) {
+        if (!expression.isConstant() || expression instanceof AggregateFunction) {
             return expression;
         }
 
-        if (expression instanceof Arithmetic) {
-
+        String fnName = null;
+        DataType[] args = null;
+        if (expression instanceof BinaryArithmetic) {
+            BinaryArithmetic arithmetic = (BinaryArithmetic) expression;
+            fnName = arithmetic.getLegacyOperator().getName();
+            args = new DataType[]{arithmetic.left().getDataType(), arithmetic.right().getDataType()};
+        } else if (expression instanceof TimestampArithmetic) {
+            TimestampArithmetic arithmetic = (TimestampArithmetic) expression;
+            fnName = arithmetic.getFuncName();
+            args = new DataType[]{arithmetic.left().getDataType(), arithmetic.right().getDataType()};
         }
+
+        if ((Env.getCurrentEnv().isNullResultWithOneNullParamFunction(fnName))) {
+            for (Expression e : expression.children()) {
+                if (e instanceof NullLiteral) {
+                    return Literal.of(null);
+                }
+            }
+        }
+
+        return invoke(expression, fnName, args);
+    }
+
+    private Expression invoke(Expression expression, String fnName, DataType[] args) {
+        FunctionSignature signature = new FunctionSignature(fnName, args, null);
+        FunctionInvoker invoker = getFunction(signature);
+        if (invoker != null) {
+            try {
+                return invoker.invoke(expression.children());
+            } catch (AnalysisException e) {
+                return expression;
+            }
+        }
+        return expression;
     }
 
 
-    private FEFunctionInvoker getFunction(FEFunctionSignature signature) {
-        Collection<FEFunctionInvoker> functionInvokers = functions.get(signature.getName());
+    private FunctionInvoker getFunction(FunctionSignature signature) {
+        Collection<FunctionInvoker> functionInvokers = functions.get(signature.getName());
         if (functionInvokers == null) {
             return null;
         }
-        for (FEFunctionInvoker invoker : functionInvokers) {
+        for (FunctionInvoker invoker : functionInvokers) {
             DataType[] argTypes1 = invoker.getSignature().getArgTypes();
             DataType[] argTypes2 = signature.getArgTypes();
 
@@ -85,13 +114,13 @@ public class ExpressionEvaluator {
         return null;
     }
 
-    private synchronized void registerFunctions() {
+    private void registerFunctions() {
         if (functions != null) {
             return;
         }
-        ImmutableMultimap.Builder<String, FEFunctionInvoker> mapBuilder =
-                new ImmutableMultimap.Builder<String, FEFunctionInvoker>();
-        Class clazz = FEFunctions.class;
+        ImmutableMultimap.Builder<String, FunctionInvoker> mapBuilder =
+                new ImmutableMultimap.Builder<String, FunctionInvoker>();
+        Class clazz = ExecutableFunctions.class;
         for (Method method : clazz.getDeclaredMethods()) {
             FEFunctionList annotationList = method.getAnnotation(FEFunctionList.class);
             if (annotationList != null) {
@@ -104,26 +133,26 @@ public class ExpressionEvaluator {
         this.functions = mapBuilder.build();
     }
 
-    private void registerFEFunction(ImmutableMultimap.Builder<String, FEFunctionInvoker> mapBuilder,
+    private void registerFEFunction(ImmutableMultimap.Builder<String, FunctionInvoker> mapBuilder,
             Method method, FEFunction annotation) {
         if (annotation != null) {
             String name = annotation.name();
             DataType returnType = DataType.convertFromString(annotation.returnType());
-            List<Type> argTypes = new ArrayList<>();
+            List<DataType> argTypes = new ArrayList<>();
             for (String type : annotation.argTypes()) {
-                argTypes.add(ScalarType.createType(type));
+                argTypes.add(DataType.convertFromString(type));
             }
-            FEFunctionSignature signature = new FEFunctionSignature(name,
+            FunctionSignature signature = new FunctionSignature(name,
                     argTypes.toArray(new DataType[argTypes.size()]), returnType);
-            mapBuilder.put(name, new FEFunctionInvoker(method, signature));
+            mapBuilder.put(name, new FunctionInvoker(method, signature));
         }
     }
 
-    public static class FEFunctionInvoker {
+    public static class FunctionInvoker {
         private final Method method;
-        private final FEFunctionSignature signature;
+        private final FunctionSignature signature;
 
-        public FEFunctionInvoker(Method method, FEFunctionSignature signature) {
+        public FunctionInvoker(Method method, FunctionSignature signature) {
             this.method = method;
             this.signature = signature;
         }
@@ -132,11 +161,11 @@ public class ExpressionEvaluator {
             return method;
         }
 
-        public FEFunctionSignature getSignature() {
+        public FunctionSignature getSignature() {
             return signature;
         }
 
-        public Literal invoke(List<Literal> args) throws AnalysisException {
+        public Literal invoke(List<Expression> args) throws AnalysisException {
             try {
                 return (Literal) method.invoke(null, args.toArray());
             } catch (InvocationTargetException | IllegalAccessException | IllegalArgumentException e) {
@@ -145,12 +174,12 @@ public class ExpressionEvaluator {
         }
     }
 
-    public static class FEFunctionSignature {
+    public static class FunctionSignature {
         private final String name;
         private final DataType[] argTypes;
         private final DataType returnType;
 
-        public FEFunctionSignature(String name, DataType[] argTypes, DataType returnType) {
+        public FunctionSignature(String name, DataType[] argTypes, DataType returnType) {
             this.name = name;
             this.argTypes = argTypes;
             this.returnType = returnType;

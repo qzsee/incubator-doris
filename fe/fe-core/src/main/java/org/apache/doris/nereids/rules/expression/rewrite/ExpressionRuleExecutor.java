@@ -59,6 +59,6 @@ public class ExpressionRuleExecutor {
 
     private Expression applyRule(Expression expr, ExpressionRewriteRule rule) {
         return rule.rewrite(expr, ctx);
-    }
+     }
 
 }

@@ -120,18 +120,34 @@ public abstract class DataType implements AbstractDataType {
             case "bool":
             case "boolean":
                 return BooleanType.INSTANCE;
+            case "tinyint":
+                return TinyIntType.INSTANCE;
+            case "smallint":
+                return SmallIntType.INSTANCE;
             case "int":
                 return IntegerType.INSTANCE;
             case "bigint":
                 return BigIntType.INSTANCE;
+            case "largeint":
+                return LargeIntType.INSTANCE;
+            case "float":
+                return FloatType.INSTANCE;
             case "double":
                 return DoubleType.INSTANCE;
+            case "char":
+                return CharType.INSTANCE;
+            case "varchar":
+                return VarcharType.SYSTEM_DEFAULT;
             case "string":
                 return StringType.INSTANCE;
             case "null":
                 return NullType.INSTANCE;
+            case "date":
+                return DateType.INSTANCE;
             case "datetime":
                 return DateTimeType.INSTANCE;
+            case "decimal":
+                return DecimalType.SYSTEM_DEFAULT;
             default:
                 throw new AnalysisException("Nereids do not support type: " + type);
         }
@@ -188,16 +204,48 @@ public abstract class DataType implements AbstractDataType {
         return 0;
     }
 
-    public boolean isDate() {
-        return this instanceof DateType;
+    public boolean isBooleanType() {
+        return this instanceof BooleanType;
+    }
+
+    public boolean isTinyIntType() {
+        return this instanceof TinyIntType;
+    }
+
+    public boolean isSmallIntType() {
+        return this instanceof SmallIntType;
     }
 
     public boolean isIntType() {
         return this instanceof IntegerType;
     }
 
+    public boolean isBigIntType() {
+        return this instanceof BigIntType;
+    }
+
+    public boolean isLargeIntType() {
+        return this instanceof LargeIntType;
+    }
+
+    public boolean isFloatType() {
+        return this instanceof FloatType;
+    }
+
+    public boolean isDoubleType() {
+        return this instanceof DoubleType;
+    }
+
+    public boolean isDecimalType() {
+        return this instanceof DecimalType;
+    }
+
     public boolean isDateTime() {
         return this instanceof DateTimeType;
+    }
+
+    public boolean isDate() {
+        return this instanceof DateType;
     }
 
     public boolean isDateType() {
@@ -210,6 +258,14 @@ public abstract class DataType implements AbstractDataType {
 
     public boolean isNumericType() {
         return this instanceof NumericType;
+    }
+
+    public boolean isCharType() {
+        return this instanceof CharType;
+    }
+
+    public boolean isVarcharType() {
+        return this instanceof VarcharType;
     }
 
     public boolean isStringType() {

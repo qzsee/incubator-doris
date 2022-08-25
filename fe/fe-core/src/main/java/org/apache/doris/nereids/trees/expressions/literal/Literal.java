@@ -18,18 +18,24 @@
 package org.apache.doris.nereids.trees.expressions.literal;
 
 import org.apache.doris.analysis.LiteralExpr;
+import org.apache.doris.nereids.exceptions.AnalysisException;
 import org.apache.doris.nereids.exceptions.UnboundException;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.shape.LeafExpression;
 import org.apache.doris.nereids.trees.expressions.visitor.ExpressionVisitor;
 import org.apache.doris.nereids.types.BigIntType;
 import org.apache.doris.nereids.types.BooleanType;
+import org.apache.doris.nereids.types.CharType;
 import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.nereids.types.IntegerType;
 import org.apache.doris.nereids.types.StringType;
+import org.apache.doris.nereids.types.VarcharType;
 
 import org.apache.commons.lang3.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -55,10 +61,22 @@ public abstract class Literal extends Expression implements LeafExpression {
     public static Literal of(Object value) {
         if (value == null) {
             return new NullLiteral();
+        } else if (value instanceof Byte) {
+            return new TinyIntLiteral((byte) value);
+        } else if (value instanceof Short) {
+            return new SmallIntLiteral((short) value);
         } else if (value instanceof Integer) {
-            return new IntegerLiteral((Integer) value);
+            return new IntegerLiteral((int) value);
+        } else if (value instanceof Long) {
+            return new BigIntLiteral((long) value);
+        } else if (value instanceof BigInteger) {
+            return new LargeIntLiteral((BigInteger) value);
+        } else if (value instanceof Float) {
+            return new FloatLiteral((float) value);
+        } else if (value instanceof Double) {
+            return new DoubleLiteral((double) value);
         } else if (value instanceof Boolean) {
-            return new BooleanLiteral((Boolean) value);
+            return new BooleanLiteral((boolean) value);
         } else if (value instanceof String) {
             return new StringLiteral((String) value);
         } else {
@@ -67,6 +85,10 @@ public abstract class Literal extends Expression implements LeafExpression {
     }
 
     public abstract Object getValue();
+
+    public String getStringValue() {
+        return String.valueOf(getValue());
+    }
 
     @Override
     public DataType getDataType() throws UnboundException {
@@ -92,30 +114,81 @@ public abstract class Literal extends Expression implements LeafExpression {
         return this instanceof NullLiteral;
     }
 
-    public int compareLiteral(Literal other) {
+    public int compareTo(Literal other) {
         if (isNull() && other.isNull()) {
             return 0;
         }
         DataType oType = other.getDataType();
         DataType type = getDataType();
-
         if (!type.equals(oType)) {
             throw new RuntimeException("data type not equal!");
-        }
-
-        if (type instanceof BooleanType) {
-            return Boolean.compare((Boolean) getValue(), (Boolean) other.getValue());
-        }
-        if (type instanceof IntegerType) {
-            return Integer.compare((Integer) getValue(), (Integer) other.getValue());
-        }
-        if (type instanceof BigIntType) {
+        } else if (type.isBooleanType()) {
+            return Boolean.compare((boolean) getValue(), (boolean) other.getValue());
+        } else if (type.isTinyIntType()) {
+            return Byte.compare((byte) getValue(), (byte) other.getValue());
+        } else if (type.isSmallIntType()) {
+            return Short.compare((short) getValue(), (short) other.getValue());
+        } else if (type.isIntType()) {
+            return Integer.compare((int) getValue(), (int) other.getValue());
+        } else if (type.isBigIntType()) {
+            return Long.compare((long) getValue(), (long) other.getValue());
+        } else if (type.isLargeIntType()) {
+            return ((BigInteger) getValue()).compareTo((BigInteger) other.getValue());
+        } else if (type.isFloatType()) {
+            return Float.compare((float) getValue(), (float) other.getValue());
+        } else if (type.isDoubleType()) {
+            return Double.compare((double) getValue(), (double) other.getValue());
+        } else if (type.isDecimalType()) {
             return Long.compare((Long) getValue(), (Long) other.getValue());
-        }
-        if (type instanceof StringType) {
-            return StringUtils.compare((String) getValue(), (String) getValue());
+        } else if (type.isDateType()) {
+            // todo process date
+        } else if (type.isDecimalType()) {
+            return ((BigDecimal) getValue()).compareTo((BigDecimal) other.getValue());
+        } else if (type instanceof StringType) {
+            return StringUtils.compare((String) getValue(), (String) other.getValue());
         }
         return -1;
+    }
+
+    @Override
+    protected Expression uncheckedCastTo(DataType targetType) throws AnalysisException {
+        String desc = getStringValue();
+        if (targetType.isBooleanType()) {
+            if ("0".equals(desc) || "false".equals(desc.toLowerCase(Locale.ROOT))) {
+                return Literal.of(false);
+            }
+            if ("1".equals(desc) || "true".equals(desc.toLowerCase(Locale.ROOT))) {
+                return Literal.of(true);
+            }
+        }
+        if (targetType.isTinyIntType()) {
+            return Literal.of(Double.valueOf(desc).byteValue());
+        } else if (targetType.isSmallIntType()) {
+            return Literal.of(Double.valueOf(desc).shortValue());
+        } else if (targetType.isIntType()) {
+            return Literal.of(Double.valueOf(desc).intValue());
+        } else if (targetType.isBigIntType()) {
+            return Literal.of(Double.valueOf(desc).longValue());
+        } else if (targetType.isLargeIntType()) {
+            return Literal.of(new BigInteger(desc));
+        } else if (targetType.isFloatType()) {
+            return Literal.of(Float.parseFloat(desc));
+        } else if (targetType.isDoubleType()) {
+            return Literal.of(Double.parseDouble(desc));
+        } else if (targetType.isCharType()) {
+            return new CharLiteral(desc, ((CharType) targetType).getLen());
+        } else if (targetType.isVarcharType()) {
+            return new VarcharLiteral(desc, ((VarcharType) targetType).getLen());
+        } else if (targetType.isStringType()) {
+            return Literal.of(desc);
+        } else if (targetType.isDate()) {
+            return new DateLiteral(desc);
+        } else if (targetType.isDateTime()) {
+            return new DateTimeLiteral(desc);
+        } else if (targetType.isDecimalType()) {
+            return new DecimalLiteral(BigDecimal.valueOf(Double.parseDouble(desc)));
+        }
+        throw new AnalysisException("no support cast!");
     }
 
     @Override

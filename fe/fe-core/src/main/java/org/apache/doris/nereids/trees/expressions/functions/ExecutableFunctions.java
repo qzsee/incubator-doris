@@ -17,10 +17,14 @@
 
 package org.apache.doris.nereids.trees.expressions.functions;
 
-import org.apache.doris.nereids.trees.expressions.DoubleLiteral;
-import org.apache.doris.nereids.trees.expressions.IntegerLiteral;
-import org.apache.doris.nereids.types.BigIntType;
-import org.apache.doris.nereids.types.IntegerType;
+import org.apache.doris.common.AnalysisException;
+import org.apache.doris.nereids.trees.expressions.literal.BigIntLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.DateTimeLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.DecimalLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.DoubleLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.IntegerLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.SmallIntLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.TinyIntLiteral;
 import org.apache.doris.rewrite.FEFunction;
 
 import org.apache.logging.log4j.LogManager;
@@ -37,28 +41,28 @@ public class ExecutableFunctions {
      * Executable arithmetic functions
      */
 
-    @FEFunction(name = "add", argTypes = {"TINYINT", "TINYINT"}, returnType = "SMALLINT")
-    public static IntegerLiteral addTinyint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.addExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, SmallIntType.INSTANCE);
+    @FEFunction(name = "add", argTypes = {"TINYINT", "TINYINT"}, returnType = "TINYINT")
+    public static TinyIntLiteral addTinyint(TinyIntLiteral first, TinyIntLiteral second) {
+        byte result = (byte) Math.addExact(first.getValue(), second.getValue());
+        return new TinyIntLiteral(result);
     }
 
-    @FEFunction(name = "add", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "INT")
-    public static IntegerLiteral addSmallint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.addExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, IntegerType.INSTANCE);
+    @FEFunction(name = "add", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "SMALLINT")
+    public static SmallIntLiteral addSmallint(SmallIntLiteral first, SmallIntLiteral second) {
+        short result = (short) Math.addExact(first.getValue(), second.getValue());
+        return new SmallIntLiteral(result);
     }
 
-    @FEFunction(name = "add", argTypes = {"INT", "INT"}, returnType = "BIGINT")
+    @FEFunction(name = "add", argTypes = {"INT", "INT"}, returnType = "INT")
     public static IntegerLiteral addInt(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.addExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
+        int result = Math.addExact(first.getValue(), second.getValue());
+        return new IntegerLiteral(result);
     }
 
     @FEFunction(name = "add", argTypes = {"BIGINT", "BIGINT"}, returnType = "BIGINT")
-    public static IntegerLiteral addBigint(IntegerLiteral first, IntegerLiteral second) {
+    public static BigIntLiteral addBigint(BigIntLiteral first, BigIntLiteral second) {
         long result = Math.addExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
+        return new BigIntLiteral(result);
     }
 
     @FEFunction(name = "add", argTypes = {"DOUBLE", "DOUBLE"}, returnType = "DOUBLE")
@@ -73,28 +77,28 @@ public class ExecutableFunctions {
         return new DecimalLiteral(result);
     }
 
-    @FEFunction(name = "subtract", argTypes = {"TINYINT", "TINYINT"}, returnType = "SMALLINT")
-    public static IntegerLiteral subtractTinyint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.subtractExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, SmallIntType.INSTANCE);
+    @FEFunction(name = "subtract", argTypes = {"TINYINT", "TINYINT"}, returnType = "TINYINT")
+    public static TinyIntLiteral subtractTinyint(TinyIntLiteral first, TinyIntLiteral second) {
+        byte result = (byte) Math.subtractExact(first.getValue(), second.getValue());
+        return new TinyIntLiteral(result);
     }
 
-    @FEFunction(name = "subtract", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "INT")
-    public static IntegerLiteral subtractSmallint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.subtractExact(first.getValue(), second.getValue());
+    @FEFunction(name = "subtract", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "SMALLINT")
+    public static SmallIntLiteral subtractSmallint(SmallIntLiteral first, SmallIntLiteral second) {
+        short result = (short) Math.subtractExact(first.getValue(), second.getValue());
+        return new SmallIntLiteral(result);
+    }
+
+    @FEFunction(name = "subtract", argTypes = {"INT", "INT"}, returnType = "INT")
+    public static IntegerLiteral subtractInt(IntegerLiteral first, IntegerLiteral second) {
+        int result = Math.subtractExact(first.getValue(), second.getValue());
         return new IntegerLiteral(result);
     }
 
-    @FEFunction(name = "subtract", argTypes = {"INT", "INT"}, returnType = "BIGINT")
-    public static IntegerLiteral subtractInt(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.subtractExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
-    }
-
     @FEFunction(name = "subtract", argTypes = {"BIGINT", "BIGINT"}, returnType = "BIGINT")
-    public static IntegerLiteral subtractBigint(IntegerLiteral first, IntegerLiteral second) {
+    public static BigIntLiteral subtractBigint(BigIntLiteral first, BigIntLiteral second) {
         long result = Math.subtractExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
+        return new BigIntLiteral(result);
     }
 
     @FEFunction(name = "subtract", argTypes = {"DOUBLE", "DOUBLE"}, returnType = "DOUBLE")
@@ -109,28 +113,28 @@ public class ExecutableFunctions {
         return new DecimalLiteral(result);
     }
 
-    @FEFunction(name = "multiply", argTypes = {"TINYINT", "TINYINT"}, returnType = "SMALLINT")
-    public static IntegerLiteral multiplyTinyint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.multiplyExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, SmallIntType.INSTANCE);
+    @FEFunction(name = "multiply", argTypes = {"TINYINT", "TINYINT"}, returnType = "TINYINT")
+    public static TinyIntLiteral multiplyTinyint(TinyIntLiteral first, TinyIntLiteral second) {
+        byte result = (byte) Math.multiplyExact(first.getValue(), second.getValue());
+        return new TinyIntLiteral(result);
     }
 
-    @FEFunction(name = "multiply", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "INT")
-    public static IntegerLiteral multiplySmallint(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.multiplyExact(first.getValue(), second.getValue());
+    @FEFunction(name = "multiply", argTypes = {"SMALLINT", "SMALLINT"}, returnType = "SMALLINT")
+    public static SmallIntLiteral multiplySmallint(SmallIntLiteral first, SmallIntLiteral second) {
+        short result = (short) Math.multiplyExact(first.getValue(), second.getValue());
+        return new SmallIntLiteral(result);
+    }
+
+    @FEFunction(name = "multiply", argTypes = {"INT", "INT"}, returnType = "INT")
+    public static IntegerLiteral multiplyInt(IntegerLiteral first, IntegerLiteral second) {
+        int result = Math.multiplyExact(first.getValue(), second.getValue());
         return new IntegerLiteral(result);
     }
 
-    @FEFunction(name = "multiply", argTypes = {"INT", "INT"}, returnType = "BIGINT")
-    public static IntegerLiteral multiplyInt(IntegerLiteral first, IntegerLiteral second) {
-        long result = Math.multiplyExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
-    }
-
     @FEFunction(name = "multiply", argTypes = {"BIGINT", "BIGINT"}, returnType = "BIGINT")
-    public static IntegerLiteral multiplyBigint(IntegerLiteral first, IntegerLiteral second) {
+    public static BigIntLiteral multiplyBigint(BigIntLiteral first, BigIntLiteral second) {
         long result = Math.multiplyExact(first.getValue(), second.getValue());
-        return new IntegerLiteral(result, BigIntType.INSTANCE);
+        return new BigIntLiteral(result);
     }
 
     @FEFunction(name = "multiply", argTypes = {"DOUBLE", "DOUBLE"}, returnType = "DOUBLE")
@@ -162,4 +166,25 @@ public class ExecutableFunctions {
         BigDecimal result = first.getValue().divide(second.getValue());
         return new DecimalLiteral(result);
     }
+
+    @FEFunction(name = "date_sub", argTypes = { "DATETIME", "INT" }, returnType = "DATETIME")
+    public static DateTimeLiteral dateSub(DateTimeLiteral date, IntegerLiteral day) throws AnalysisException {
+        return dateAdd(date, new IntegerLiteral(-day.getValue()));
+    }
+
+    @FEFunction(name = "date_add", argTypes = { "DATETIME", "INT" }, returnType = "DATETIME")
+    public static DateTimeLiteral dateAdd(DateTimeLiteral date, IntegerLiteral day) throws AnalysisException {
+        return daysAdd(date, day);
+    }
+
+    @FEFunction(name = "days_sub", argTypes = { "DATETIME", "INT" }, returnType = "DATETIME")
+    public static DateTimeLiteral daysSub(DateTimeLiteral date, IntegerLiteral day) throws AnalysisException {
+        return daysAdd(date, new IntegerLiteral(-day.getValue()));
+    }
+
+    @FEFunction(name = "days_add", argTypes = { "DATETIME", "INT" }, returnType = "DATETIME")
+    public static DateTimeLiteral daysAdd(DateTimeLiteral date, IntegerLiteral day) throws AnalysisException {
+        return date.plusDays(day.getValue());
+    }
+
 }

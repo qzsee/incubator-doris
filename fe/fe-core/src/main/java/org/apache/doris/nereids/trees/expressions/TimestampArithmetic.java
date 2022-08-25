@@ -21,11 +21,15 @@ import org.apache.doris.analysis.ArithmeticExpr.Operator;
 import org.apache.doris.nereids.exceptions.UnboundException;
 import org.apache.doris.nereids.trees.expressions.literal.IntervalLiteral.TimeUnit;
 import org.apache.doris.nereids.trees.expressions.shape.BinaryExpression;
+import org.apache.doris.nereids.trees.expressions.typecoercion.ImplicitCastInputTypes;
 import org.apache.doris.nereids.trees.expressions.visitor.ExpressionVisitor;
 import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.nereids.types.DateTimeType;
+import org.apache.doris.nereids.types.IntegerType;
+import org.apache.doris.nereids.types.coercion.AbstractDataType;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,7 +41,13 @@ import java.util.List;
  * They are executed as function call exprs in the BE.
  * TODO: we need to rethink this, and maybe need to add a new type of Interval then implement IntervalLiteral as others
  */
-public class TimestampArithmetic extends Expression implements BinaryExpression {
+public class TimestampArithmetic extends Expression implements BinaryExpression, ImplicitCastInputTypes {
+
+    private static final List<AbstractDataType> EXPECTED_INPUT_TYPES = ImmutableList.of(
+            DateTimeType.INSTANCE,
+            IntegerType.INSTANCE
+    );
+
     private static final Logger LOG = LogManager.getLogger(TimestampArithmetic.class);
     private final String funcName;
     private final boolean intervalFirst;
@@ -137,5 +147,10 @@ public class TimestampArithmetic extends Expression implements BinaryExpression 
             strBuilder.append(timeUnit);
         }
         return strBuilder.toString();
+    }
+
+    @Override
+    public List<AbstractDataType> expectedInputTypes() {
+        return EXPECTED_INPUT_TYPES;
     }
 }

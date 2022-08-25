@@ -66,6 +66,10 @@ public class SlotReference extends Slot {
         this.nullable = nullable;
     }
 
+    public static SlotReference of(String name, DataType type) {
+        return new SlotReference(name, type);
+    }
+
     public static SlotReference fromColumn(Column column, List<String> qualifier) {
         DataType dataType = DataType.convertFromCatalogDataType(column.getType());
         return new SlotReference(column.getName(), dataType, column.isAllowNull(), qualifier);

@@ -30,20 +30,15 @@ import org.apache.doris.nereids.types.IntegerType;
  */
 public class IntegerLiteral extends Literal {
 
-    private final long value;
+    private final int value;
 
-    public IntegerLiteral(long value) {
+    public IntegerLiteral(int value) {
         super(IntegerType.INSTANCE);
         this.value = value;
     }
 
-    public IntegerLiteral(long value, DataType type) {
-        super(type);
-        this.value = value;
-    }
-
     @Override
-    public Long getValue() {
+    public Integer getValue() {
         return value;
     }
 
