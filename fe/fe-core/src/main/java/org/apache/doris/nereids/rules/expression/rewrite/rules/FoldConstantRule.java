@@ -325,8 +325,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
             Map<String, Map<String, Expr>> resMap = calc(paramMap, ori, context.connectContext);
             Expr result = resMap.get("0").get(expr.getId().toString());
             if (result instanceof LiteralExpr) {
-                return visitCast(new Cast(Literal.of(result.getStringValue()),
-                        DataType.convertFromString(result.getType().getPrimitiveType().toString())), context);
+                return Literal.of(result.getStringValue()).castTo(DataType.convertFromString(result.getType().getPrimitiveType().toString()));
             }
         }
         return root;
