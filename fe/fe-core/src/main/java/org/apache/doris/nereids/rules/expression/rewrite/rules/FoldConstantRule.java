@@ -20,10 +20,12 @@ package org.apache.doris.nereids.rules.expression.rewrite.rules;
 import org.apache.doris.analysis.BetweenPredicate;
 import org.apache.doris.analysis.CastExpr;
 import org.apache.doris.analysis.Expr;
+import org.apache.doris.analysis.ExprId;
 import org.apache.doris.analysis.LiteralExpr;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.Type;
+import org.apache.doris.common.IdGenerator;
 import org.apache.doris.common.LoadException;
 import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.common.util.VectorizedUtil;
@@ -48,7 +50,6 @@ import org.apache.doris.nereids.trees.expressions.LessThanEqual;
 import org.apache.doris.nereids.trees.expressions.Not;
 import org.apache.doris.nereids.trees.expressions.NullSafeEqual;
 import org.apache.doris.nereids.trees.expressions.Or;
-import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.TimestampArithmetic;
 import org.apache.doris.nereids.trees.expressions.WhenClause;
 import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
@@ -80,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class FoldConstantRule extends AbstractExpressionRewriteRule {
@@ -310,9 +312,10 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
     private Expression foldByBe(Expression root, ConnectContext context) {
         if (root.isConstant()) {
             Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
-
+            IdGenerator<ExprId> idGenerator = ExprId.createGenerator();
+            assignId(expr, idGenerator);
             Map<String, Expr> ori = new HashMap<>();
-            ori.put("0", expr);
+            ori.put(expr.getId().toString(), expr);
 
             Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
             Map<String, TExpr> constMap = new HashMap<>();
@@ -406,5 +409,14 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
             LOG.warn("failed to get const expr value from be: {}", e.getMessage());
         }
         return resultMap;
+    }
+
+    private void assignId(Expr expr, IdGenerator<ExprId> idGenerator) {
+        if (expr.getId() == null) {
+            expr.setId(idGenerator.getNextId());
+        }
+        for (Expr child : expr.getChildren()) {
+            assignId(child, idGenerator);
+        }
     }
 }
