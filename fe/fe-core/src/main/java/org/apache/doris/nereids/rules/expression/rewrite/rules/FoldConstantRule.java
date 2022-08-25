@@ -56,6 +56,7 @@ import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
+import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.proto.InternalService;
 import org.apache.doris.proto.InternalService.PConstantExprResult;
 import org.apache.doris.qe.ConnectContext;
@@ -81,7 +82,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class FoldConstantRule extends AbstractExpressionRewriteRule {
@@ -93,7 +93,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
     @Override
     public Expression rewrite(Expression expr, ExpressionRewriteContext ctx) {
         if (ctx.connectContext != null && ctx.connectContext.getSessionVariable().isEnableFoldConstantByBe()) {
-            return foldByBe(expr, ctx.connectContext);
+            return foldByBe(expr, ctx);
         }
         return super.rewrite(expr, ctx);
     }
@@ -309,7 +309,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return Arrays.stream(children).anyMatch(c -> c instanceof NullLiteral);
     }
 
-    private Expression foldByBe(Expression root, ConnectContext context) {
+    private Expression foldByBe(Expression root, ExpressionRewriteContext context) {
         if (root.isConstant()) {
             Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
             IdGenerator<ExprId> idGenerator = ExprId.createGenerator();
@@ -322,9 +322,12 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
 
             collectConstExpr(expr, constMap);
             paramMap.put("0", constMap);
-            Map<String, Map<String, Expr>> res = calc(paramMap, ori, context);
-            System.out.println(res);
-            return null;
+            Map<String, Map<String, Expr>> resMap = calc(paramMap, ori, context.connectContext);
+            Expr result = resMap.get("0").get(expr.getId().toString());
+            if (result instanceof LiteralExpr) {
+                return visitCast(new Cast(Literal.of(result.getStringValue()),
+                        DataType.convertFromString(result.getType().getPrimitiveType().toString())), context);
+            }
         }
         return root;
     }
