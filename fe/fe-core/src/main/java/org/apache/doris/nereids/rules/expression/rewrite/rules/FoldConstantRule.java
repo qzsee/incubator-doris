@@ -17,6 +17,15 @@
 
 package org.apache.doris.nereids.rules.expression.rewrite.rules;
 
+import org.apache.doris.analysis.Analyzer;
+import org.apache.doris.analysis.BetweenPredicate;
+import org.apache.doris.analysis.CastExpr;
+import org.apache.doris.analysis.Expr;
+import org.apache.doris.analysis.InformationFunction;
+import org.apache.doris.analysis.LiteralExpr;
+import org.apache.doris.analysis.SysVariableDesc;
+import org.apache.doris.common.AnalysisException;
+import org.apache.doris.nereids.glue.translator.ExpressionTranslator;
 import org.apache.doris.nereids.rules.expression.rewrite.AbstractExpressionRewriteRule;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionRewriteContext;
 import org.apache.doris.nereids.trees.expressions.And;
@@ -43,15 +52,27 @@ import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
+import org.apache.doris.thrift.TExpr;
+
+import com.google.common.base.Predicates;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FoldConstantRule extends AbstractExpressionRewriteRule {
 
     public static final FoldConstantRule INSTANCE = new FoldConstantRule();
+
+    @Override
+    public Expression rewrite(Expression expr, ExpressionRewriteContext ctx) {
+        if (ctx.connectContext.getSessionVariable().isEnableFoldConstantByBe()) {
+            return foldByBe(expr);
+        }
+        return super.rewrite(expr, ctx);
+    }
 
     @Override
     public Expression visitCompoundPredicate(CompoundPredicate compoundPredicate, ExpressionRewriteContext context) {
@@ -228,7 +249,6 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return binaryArithmetic.withChildren(left, right);
     }
 
-
     @Override
     public Expression visitBoundFunction(BoundFunction boundFunction, ExpressionRewriteContext context) {
         List<Expression> newArgs = boundFunction.getArguments().stream().map(arg -> rewrite(arg, context))
@@ -263,5 +283,32 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
 
     private static boolean hasNull(Expression... children) {
         return Arrays.stream(children).anyMatch(c -> c instanceof NullLiteral);
+    }
+
+    private Expression foldByBe(Expression root) {
+        Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
+
+    }
+
+    private void collectConstExpr(Expr expr, Map<String, TExpr> constExprMap) {
+        if (expr.isConstant()) {
+            if (expr instanceof CastExpr) {
+                CastExpr castExpr = (CastExpr) expr;
+                if (castExpr.getChild(0) instanceof org.apache.doris.analysis.NullLiteral) {
+                    return;
+                }
+            }
+            if (expr instanceof LiteralExpr) {
+                return;
+            }
+            if (expr instanceof BetweenPredicate) {
+                return;
+            }
+            constExprMap.put(expr.getId().toString(), expr.treeToThrift());
+        }
+        for (int i = 0; i < expr.getChildren().size(); i++) {
+            final Expr child = expr.getChildren().get(i);
+            collectConstExpr(child, constExprMap);
+        }
     }
 }
