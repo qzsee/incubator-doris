@@ -312,7 +312,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
             Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
 
             Map<String, Expr> ori = new HashMap<>();
-            ori.put(expr.getId().toString(), expr);
+            ori.put("0", expr);
 
             Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
             Map<String, TExpr> constMap = new HashMap<>();
