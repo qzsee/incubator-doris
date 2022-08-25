@@ -17,14 +17,16 @@
 
 package org.apache.doris.nereids.rules.expression.rewrite.rules;
 
-import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.BetweenPredicate;
 import org.apache.doris.analysis.CastExpr;
 import org.apache.doris.analysis.Expr;
-import org.apache.doris.analysis.InformationFunction;
 import org.apache.doris.analysis.LiteralExpr;
-import org.apache.doris.analysis.SysVariableDesc;
-import org.apache.doris.common.AnalysisException;
+import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.PrimitiveType;
+import org.apache.doris.catalog.Type;
+import org.apache.doris.common.LoadException;
+import org.apache.doris.common.util.TimeUtils;
+import org.apache.doris.common.util.VectorizedUtil;
 import org.apache.doris.nereids.glue.translator.ExpressionTranslator;
 import org.apache.doris.nereids.rules.expression.rewrite.AbstractExpressionRewriteRule;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionRewriteContext;
@@ -52,24 +54,43 @@ import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
+import org.apache.doris.proto.InternalService;
+import org.apache.doris.proto.InternalService.PConstantExprResult;
+import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.rpc.BackendServiceProxy;
+import org.apache.doris.system.Backend;
 import org.apache.doris.thrift.TExpr;
+import org.apache.doris.thrift.TFoldConstantParams;
+import org.apache.doris.thrift.TNetworkAddress;
+import org.apache.doris.thrift.TPrimitiveType;
+import org.apache.doris.thrift.TQueryGlobals;
 
-import com.google.common.base.Predicates;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class FoldConstantRule extends AbstractExpressionRewriteRule {
+    private static final Logger LOG = LogManager.getLogger(FoldConstantRule.class);
+    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     public static final FoldConstantRule INSTANCE = new FoldConstantRule();
 
     @Override
     public Expression rewrite(Expression expr, ExpressionRewriteContext ctx) {
         if (ctx.connectContext.getSessionVariable().isEnableFoldConstantByBe()) {
-            return foldByBe(expr);
+            return foldByBe(expr, ctx.connectContext);
         }
         return super.rewrite(expr, ctx);
     }
@@ -285,9 +306,20 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return Arrays.stream(children).anyMatch(c -> c instanceof NullLiteral);
     }
 
-    private Expression foldByBe(Expression root) {
+    private Expression foldByBe(Expression root, ConnectContext context) {
         Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
 
+        Map<String, Expr> ori = new HashMap<>();
+        ori.put(expr.getId().toString(), expr);
+
+        Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
+        Map<String, TExpr> constMap = new HashMap<>();
+
+        collectConstExpr(expr, constMap);
+        paramMap.put("0", constMap);
+        Map<String, Map<String, Expr>> res = calc(paramMap, ori, context);
+        System.out.println(res);
+        return null;
     }
 
     private void collectConstExpr(Expr expr, Map<String, TExpr> constExprMap) {
@@ -310,5 +342,65 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
             final Expr child = expr.getChildren().get(i);
             collectConstExpr(child, constExprMap);
         }
+    }
+
+    private Map<String, Map<String, Expr>> calc(Map<String, Map<String, TExpr>> map, Map<String, Expr> allConstMap,
+            ConnectContext context) {
+        TNetworkAddress brpcAddress = null;
+        Map<String, Map<String, Expr>> resultMap = new HashMap<>();
+        try {
+            List<Long> backendIds = Env.getCurrentSystemInfo().getBackendIds(true);
+            if (backendIds.isEmpty()) {
+                throw new LoadException("Failed to get all partitions. No alive backends");
+            }
+            Collections.shuffle(backendIds);
+            Backend be = Env.getCurrentSystemInfo().getBackend(backendIds.get(0));
+            brpcAddress = new TNetworkAddress(be.getHost(), be.getBrpcPort());
+
+            TQueryGlobals queryGlobals = new TQueryGlobals();
+            queryGlobals.setNowString(DATE_FORMAT.format(new Date()));
+            queryGlobals.setTimestampMs(System.currentTimeMillis());
+            queryGlobals.setTimeZone(TimeUtils.DEFAULT_TIME_ZONE);
+            if (context.getSessionVariable().getTimeZone().equals("CST")) {
+                queryGlobals.setTimeZone(TimeUtils.DEFAULT_TIME_ZONE);
+            } else {
+                queryGlobals.setTimeZone(context.getSessionVariable().getTimeZone());
+            }
+
+            TFoldConstantParams tParams = new TFoldConstantParams(map, queryGlobals);
+            tParams.setVecExec(VectorizedUtil.isVectorized());
+
+            Future<PConstantExprResult> future
+                    = BackendServiceProxy.getInstance().foldConstantExpr(brpcAddress, tParams);
+            InternalService.PConstantExprResult result = future.get(5, TimeUnit.SECONDS);
+
+            if (result.getStatus().getStatusCode() == 0) {
+                for (Map.Entry<String, InternalService.PExprResultMap> entry
+                        : result.getExprResultMapMap().entrySet()) {
+                    Map<String, Expr> tmp = new HashMap<>();
+                    for (Map.Entry<String, InternalService.PExprResult> entry1
+                            : entry.getValue().getMapMap().entrySet()) {
+                        TPrimitiveType type = TPrimitiveType.findByValue(entry1.getValue().getType().getType());
+                        Expr retExpr = null;
+                        if (entry1.getValue().getSuccess()) {
+                            retExpr = LiteralExpr.create(entry1.getValue().getContent(),
+                                    Type.fromPrimitiveType(PrimitiveType.fromThrift(type)));
+                        } else {
+                            retExpr = allConstMap.get(entry1.getKey());
+                        }
+                        tmp.put(entry1.getKey(), retExpr);
+                    }
+                    if (!tmp.isEmpty()) {
+                        resultMap.put(entry.getKey(), tmp);
+                    }
+                }
+
+            } else {
+                LOG.warn("failed to get const expr value from be: {}", result.getStatus().getErrorMsgsList());
+            }
+        } catch (Exception e) {
+            LOG.warn("failed to get const expr value from be: {}", e.getMessage());
+        }
+        return resultMap;
     }
 }
