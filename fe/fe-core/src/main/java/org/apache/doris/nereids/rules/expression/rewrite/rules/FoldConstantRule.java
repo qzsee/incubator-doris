@@ -310,7 +310,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
     }
 
     private Expression foldByBe(Expression root, ExpressionRewriteContext context) {
-        if (root.isConstant()) {
+        if (!root.isLiteral()) {
             Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
             IdGenerator<ExprId> idGenerator = ExprId.createGenerator();
             assignId(expr, idGenerator);
