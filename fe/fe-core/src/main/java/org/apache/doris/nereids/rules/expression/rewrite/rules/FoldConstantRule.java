@@ -48,6 +48,7 @@ import org.apache.doris.nereids.trees.expressions.LessThanEqual;
 import org.apache.doris.nereids.trees.expressions.Not;
 import org.apache.doris.nereids.trees.expressions.NullSafeEqual;
 import org.apache.doris.nereids.trees.expressions.Or;
+import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.TimestampArithmetic;
 import org.apache.doris.nereids.trees.expressions.WhenClause;
 import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
@@ -307,19 +308,22 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
     }
 
     private Expression foldByBe(Expression root, ConnectContext context) {
-        Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
+        if (root.isConstant()) {
+            Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
 
-        Map<String, Expr> ori = new HashMap<>();
-        ori.put(expr.getId().toString(), expr);
+            Map<String, Expr> ori = new HashMap<>();
+            ori.put(expr.getId().toString(), expr);
 
-        Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
-        Map<String, TExpr> constMap = new HashMap<>();
+            Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
+            Map<String, TExpr> constMap = new HashMap<>();
 
-        collectConstExpr(expr, constMap);
-        paramMap.put("0", constMap);
-        Map<String, Map<String, Expr>> res = calc(paramMap, ori, context);
-        System.out.println(res);
-        return null;
+            collectConstExpr(expr, constMap);
+            paramMap.put("0", constMap);
+            Map<String, Map<String, Expr>> res = calc(paramMap, ori, context);
+            System.out.println(res);
+            return null;
+        }
+        return root;
     }
 
     private void collectConstExpr(Expr expr, Map<String, TExpr> constExprMap) {
