@@ -47,6 +47,7 @@ import org.apache.doris.nereids.trees.expressions.InPredicate;
 import org.apache.doris.nereids.trees.expressions.IsNull;
 import org.apache.doris.nereids.trees.expressions.LessThan;
 import org.apache.doris.nereids.trees.expressions.LessThanEqual;
+import org.apache.doris.nereids.trees.expressions.Like;
 import org.apache.doris.nereids.trees.expressions.Not;
 import org.apache.doris.nereids.trees.expressions.NullSafeEqual;
 import org.apache.doris.nereids.trees.expressions.Or;
@@ -56,6 +57,7 @@ import org.apache.doris.nereids.trees.expressions.functions.BoundFunction;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.nereids.trees.expressions.literal.NullLiteral;
+import org.apache.doris.nereids.trees.expressions.shape.LeafExpression;
 import org.apache.doris.nereids.types.DataType;
 import org.apache.doris.proto.InternalService;
 import org.apache.doris.proto.InternalService.PConstantExprResult;
@@ -68,6 +70,7 @@ import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPrimitiveType;
 import org.apache.doris.thrift.TQueryGlobals;
 
+import com.clearspring.analytics.util.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -89,6 +92,7 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     public static final FoldConstantRule INSTANCE = new FoldConstantRule();
+    private final IdGenerator<ExprId> idGenerator = ExprId.createGenerator();
 
     @Override
     public Expression rewrite(Expression expr, ExpressionRewriteContext ctx) {
@@ -96,6 +100,15 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
             return foldByBe(expr, ctx);
         }
         return super.rewrite(expr, ctx);
+    }
+
+    @Override
+    public Expression visitLike(Like like, ExpressionRewriteContext context) {
+        Expression left = rewrite(like.left(), context);
+        if (left instanceof NullLiteral) {
+            return Literal.of(null);
+        }
+        return like.withChildren(left, like.right());
     }
 
     @Override
@@ -309,18 +322,20 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return Arrays.stream(children).anyMatch(c -> c instanceof NullLiteral);
     }
 
+
+
     private Expression foldByBe(Expression root, ExpressionRewriteContext context) {
         if (root.isConstant() && !root.isLiteral()) {
+            root = castTo(root);
             Expr expr = ExpressionTranslator.INSTANCE.translate(root, null);
-            IdGenerator<ExprId> idGenerator = ExprId.createGenerator();
-            assignId(expr, idGenerator);
+            assignId(expr);
             Map<String, Expr> ori = new HashMap<>();
             ori.put(expr.getId().toString(), expr);
 
             Map<String, Map<String, TExpr>> paramMap = new HashMap<>();
             Map<String, TExpr> constMap = new HashMap<>();
 
-            collectConstExpr(expr, constMap);
+            collectConst(expr, constMap);
             paramMap.put("0", constMap);
             Map<String, Map<String, Expr>> resMap = calc(paramMap, ori, context.connectContext);
             Expr result = resMap.get("0").get(expr.getId().toString());
@@ -331,7 +346,34 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return root;
     }
 
-    private void collectConstExpr(Expr expr, Map<String, TExpr> constExprMap) {
+    private Expression castTo(Expression root) {
+        if (root instanceof LeafExpression) {
+            return root;
+        }
+        if (root instanceof Cast && root.child(0).isLiteral()) {
+            Expression child = root.child(0);
+            if (child instanceof NullLiteral) {
+                return Literal.of(null);
+            }
+            return child.castTo(root.getDataType());
+        }
+        List<Expression> newChildren = Lists.newArrayList();
+        for (Expression child : root.children()) {
+            newChildren.add(castTo(child));
+        }
+        return root.withChildren(newChildren);
+    }
+
+    private void assignId(Expr expr) {
+        if (expr.getId() == null) {
+            expr.setId(idGenerator.getNextId());
+        }
+        for (Expr child : expr.getChildren()) {
+            assignId(child);
+        }
+    }
+
+    private void collectConst(Expr expr, Map<String, TExpr> constExprMap) {
         if (expr.isConstant()) {
             if (expr instanceof CastExpr) {
                 CastExpr castExpr = (CastExpr) expr;
@@ -349,13 +391,13 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         }
         for (int i = 0; i < expr.getChildren().size(); i++) {
             final Expr child = expr.getChildren().get(i);
-            collectConstExpr(child, constExprMap);
+            collectConst(child, constExprMap);
         }
     }
 
     private Map<String, Map<String, Expr>> calc(Map<String, Map<String, TExpr>> map, Map<String, Expr> allConstMap,
             ConnectContext context) {
-        TNetworkAddress brpcAddress = null;
+        TNetworkAddress brpcAddress;
         Map<String, Map<String, Expr>> resultMap = new HashMap<>();
         try {
             List<Long> backendIds = Env.getCurrentSystemInfo().getBackendIds(true);
@@ -413,12 +455,5 @@ public class FoldConstantRule extends AbstractExpressionRewriteRule {
         return resultMap;
     }
 
-    private void assignId(Expr expr, IdGenerator<ExprId> idGenerator) {
-        if (expr.getId() == null) {
-            expr.setId(idGenerator.getNextId());
-        }
-        for (Expr child : expr.getChildren()) {
-            assignId(child, idGenerator);
-        }
-    }
+
 }
