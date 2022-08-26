@@ -424,6 +424,7 @@ public class TimestampArithmeticExpr extends Expr {
         if (StringUtils.isEmpty(funcName)) {
             throw new AnalysisException("function name is null");
         }
+        timeUnit = TIME_UNITS_MAP.get(timeUnitIdent.toUpperCase());
         type = getChild(0).getType();
         opcode = getOpCode();
         fn = getBuiltinFunction(funcName.toLowerCase(), collectChildReturnTypes(),
