@@ -226,8 +226,14 @@ public class ExpressionTranslator extends DefaultExpressionVisitor<Expr, PlanTra
     @Override
     public Expr visitCast(Cast cast, PlanTranslatorContext context) {
         // left child of cast is expression, right child of cast is target type
-        return new CastExpr(cast.getDataType().toCatalogDataType(),
-                cast.child().accept(this, context));
+        Expr expr = cast.child().accept(this, context);
+        try {
+            expr.finalizeForNereids();
+        } catch (org.apache.doris.common.AnalysisException e) {
+            throw new AnalysisException(
+                    "Translate Nereids expression to stale expression failed. " + e.getMessage(), e);
+        }
+        return new CastExpr(cast.getDataType().toCatalogDataType(), expr);
     }
 
     @Override
