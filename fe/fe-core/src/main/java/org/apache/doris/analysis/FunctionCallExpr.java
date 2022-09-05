@@ -933,7 +933,7 @@ public class FunctionCallExpr extends Expr {
         } else if (fnName.getFunction().equalsIgnoreCase("if")) {
             Type[] childTypes = collectChildReturnTypes();
             Type assignmentCompatibleType = ScalarType.getAssignmentCompatibleType(childTypes[1], childTypes[2], true);
-            if (assignmentCompatibleType == Type.HLL) {
+            if (assignmentCompatibleType.isHllType()) {
                 assignmentCompatibleType = ScalarType.createVarcharType();
             }
             childTypes[1] = assignmentCompatibleType;
