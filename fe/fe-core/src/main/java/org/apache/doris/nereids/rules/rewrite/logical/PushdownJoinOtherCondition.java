@@ -64,6 +64,7 @@ public class PushdownJoinOtherCondition extends OneRewriteRuleFactory {
                     List<Expression> remainingOther = Lists.newArrayList();
                     List<Expression> leftConjuncts = Lists.newArrayList();
                     List<Expression> rightConjuncts = Lists.newArrayList();
+
                     for (Expression otherConjunct : otherJoinConjuncts) {
                         if (PUSH_DOWN_LEFT_VALID_TYPE.contains(join.getJoinType())
                                 && allCoveredBy(otherConjunct, join.left().getOutputSet())) {
