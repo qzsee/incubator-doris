@@ -17,6 +17,7 @@
 
 package org.apache.doris.nereids.rules.rewrite.logical;
 
+import org.apache.doris.nereids.pattern.MatchingContext;
 import org.apache.doris.nereids.rules.PlanRuleFactory;
 import org.apache.doris.nereids.rules.Rule;
 import org.apache.doris.nereids.rules.RulePromise;
@@ -55,7 +56,7 @@ public class InferPredicates implements PlanRuleFactory {
     private Rule inferWhere() {
         return logicalFilter(any()).thenApply(ctx -> {
             LogicalFilter<Plan> root = ctx.root;
-            Plan filter = ctx.cascadesContext.getMemo().copyOut(root.getGroupExpression().get(), false);
+            Plan filter = getOriginalPlan(ctx, root);
             Set<Expression> filterPredicates = filter.accept(predicatesExtractor, null);
             Set<Expression> filterChildPredicates = filter.child(0).accept(predicatesExtractor, null);
             filterPredicates.removeAll(filterChildPredicates);
@@ -74,27 +75,36 @@ public class InferPredicates implements PlanRuleFactory {
             JoinType joinType = root.getJoinType();
             Plan left = root.left();
             Plan right = root.right();
-            Plan originalLeft = ctx.cascadesContext.getMemo().copyOut(left.getGroupExpression().get(), false);
-            Plan originalRight = ctx.cascadesContext.getMemo().copyOut(right.getGroupExpression().get(), false);
+            Plan originalLeft = getOriginalPlan(ctx, left);
+            Plan originalRight = getOriginalPlan(ctx, right);
             Optional<Expression> condition = root.getOnClauseCondition();
             Set<Expression> expressions = getAllExpressions(originalLeft, originalRight, condition);
+            List<Expression> otherJoinConjuncts = root.getOtherJoinConjuncts();
             switch (joinType) {
                 case INNER_JOIN:
                 case CROSS_JOIN:
                 case LEFT_SEMI_JOIN:
                 case RIGHT_SEMI_JOIN:
-                    return root.withChildren(inferNewFilter(originalLeft, left, expressions),
-                            inferNewFilter(originalRight, right, expressions));
+                    otherJoinConjuncts.addAll(inferNewPredicate(originalLeft, expressions));
+                    otherJoinConjuncts.addAll(inferNewPredicate(originalRight, expressions));
+                    break;
                 case LEFT_OUTER_JOIN:
                 case LEFT_ANTI_JOIN:
-                    return root.withChildren(left, inferNewFilter(originalRight, right, expressions));
+                    otherJoinConjuncts.addAll(inferNewPredicate(originalRight, expressions));
+                    break;
                 case RIGHT_OUTER_JOIN:
                 case RIGHT_ANTI_JOIN:
-                    return root.withChildren(inferNewFilter(originalLeft, left, expressions), right);
+                    otherJoinConjuncts.addAll(inferNewPredicate(originalLeft, expressions));
+                    break;
                 default:
                     return root;
             }
+            return root.withOtherJoinConjuncts(otherJoinConjuncts);
         }).toRule(RuleType.INFER_PREDICATES_FOR_ON);
+    }
+
+    private Plan getOriginalPlan(MatchingContext context, Plan patternPlan) {
+        return context.cascadesContext.getMemo().copyOut(patternPlan.getGroupExpression().get(), false);
     }
 
     private Set<Expression> getAllExpressions(Plan left, Plan right, Optional<Expression> condition) {
@@ -105,15 +115,12 @@ public class InferPredicates implements PlanRuleFactory {
         return baseExpressions;
     }
 
-    private Plan inferNewFilter(Plan originalPlan, Plan plan, Set<Expression> expressions) {
+    private List<Expression> inferNewPredicate(Plan originalPlan, Set<Expression> expressions) {
         List<Expression> predicates = expressions.stream()
                 .filter(c -> !c.getInputSlots().isEmpty() && new HashSet<>(originalPlan.getOutput()).containsAll(
                         c.getInputSlots())).collect(Collectors.toList());
         predicates.removeAll(originalPlan.accept(predicatesExtractor, null));
-        if (!predicates.isEmpty()) {
-            return new LogicalFilter<>(ExpressionUtils.and(predicates), plan);
-        }
-        return plan;
+        return predicates;
     }
 
     @Override

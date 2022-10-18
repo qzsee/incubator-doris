@@ -20,6 +20,7 @@ package org.apache.doris.nereids.rules.rewrite.logical;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.SlotReference;
+import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -27,6 +28,7 @@ import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * derive additional predicates.
@@ -35,66 +37,103 @@ import java.util.Set;
  */
 public class PredicatePropagation {
 
-    /**
-     * infer additional predicates.
-     */
+
     public Set<Expression> infer(List<Expression> predicates) {
         Set<Expression> inferred = Sets.newHashSet();
         for (Expression predicate : predicates) {
             if (canEquivalentDeduce(predicate)) {
-                List<Expression> candidates = subtract(predicates, predicate);
-                candidates.forEach(candidate -> {
-                    inferred.add(transform(candidate, predicate.child(0), predicate.child(1)));
-                });
+                Expression leftSlotEqualToRightSlot = predicate;
+
+                List<Expression> newInferred = predicates.stream()
+                        .filter(p -> !p.equals(leftSlotEqualToRightSlot))
+                        .map(p -> doInfer(leftSlotEqualToRightSlot, p))
+                        .collect(Collectors.toList());
+                inferred.addAll(newInferred);
             }
         }
         predicates.forEach(inferred::remove);
         return inferred;
     }
 
-    private Expression transform(Expression expression, Expression source, Expression target) {
-        Expression rewritten = replace(expression, source, target);
-        if (expression.equals(rewritten)) {
-            rewritten = mapChildren(expression, source, target);
-            if (expression.equals(rewritten)) {
-                return expression;
-            } else {
-                return rewritten;
+    private Expression doInfer(Expression leftSlotEqualToRightSlot, Expression expression) {
+        return expression.accept(new DefaultExpressionRewriter<Void>() {
+            @Override
+            public Expression visit(Expression expr, Void context) {
+                expr = super.visit(expr, context);
+
+                // flip leftSlot and rightSlot
+                if (expr.equals(leftSlotEqualToRightSlot.child(0))) {
+                    return leftSlotEqualToRightSlot.child(1);
+                } else if (expr.equals(leftSlotEqualToRightSlot.child(1))) {
+                    return leftSlotEqualToRightSlot.child(0);
+                } else {
+                    return expr;
+                }
             }
-        } else {
-            return mapChildren(rewritten, source, target);
-        }
+        }, null);
     }
 
-    private Expression mapChildren(Expression expression, Expression source, Expression target) {
-        if (!expression.children().isEmpty()) {
-            List<Expression> children = Lists.newArrayList();
-            for (Expression child : expression.children()) {
-                children.add(transform(child, source, target));
-            }
-            return expression.withChildren(children);
-        } else {
-            return expression;
-        }
-    }
 
-    private Expression replace(Expression expression, Expression source, Expression target) {
-        if (expression.equals(source)) {
-            return target;
-        }
-        if (expression.equals(target)) {
-            return source;
-        }
-        return expression;
-    }
+    /**
+     * infer additional predicates.
+     */
+//    public Set<Expression> infer(List<Expression> predicates) {
+//        Set<Expression> inferred = Sets.newHashSet();
+//        for (Expression predicate : predicates) {
+//            if (canEquivalentDeduce(predicate)) {
+//                List<Expression> candidates = subtract(predicates, predicate);
+//                candidates.forEach(candidate -> {
+//                    inferred.add(transform(candidate, predicate.child(0), predicate.child(1)));
+//                });
+//            }
+//        }
+//        predicates.forEach(inferred::remove);
+//        return inferred;
+//    }
+//
+//    private Expression transform(Expression expression, Expression source, Expression target) {
+//        Expression rewritten = replace(expression, source, target);
+//        if (expression.equals(rewritten)) {
+//            rewritten = mapChildren(expression, source, target);
+//            if (expression.equals(rewritten)) {
+//                return expression;
+//            } else {
+//                return rewritten;
+//            }
+//        } else {
+//            return mapChildren(rewritten, source, target);
+//        }
+//    }
+//
+//    private Expression mapChildren(Expression expression, Expression source, Expression target) {
+//        if (!expression.children().isEmpty()) {
+//            List<Expression> children = Lists.newArrayList();
+//            for (Expression child : expression.children()) {
+//                children.add(transform(child, source, target));
+//            }
+//            return expression.withChildren(children);
+//        } else {
+//            return expression;
+//        }
+//    }
+//
+//    private Expression replace(Expression expression, Expression source, Expression target) {
+//        if (expression.equals(source)) {
+//            return target;
+//        }
+//        if (expression.equals(target)) {
+//            return source;
+//        }
+//        return expression;
+//    }
 
     private boolean canEquivalentDeduce(Expression predicate) {
         return predicate instanceof EqualTo && predicate.children().stream().allMatch(e -> e instanceof SlotReference);
     }
 
-    private List<Expression> subtract(List<Expression> expressions, Expression target) {
-        ArrayList<Expression> cloneList = Lists.newArrayList(expressions);
-        cloneList.remove(target);
-        return cloneList;
-    }
+//    private List<Expression> subtract(List<Expression> expressions, Expression target) {
+//        ArrayList<Expression> cloneList = Lists.newArrayList(expressions);
+//        cloneList.remove(target);
+//        return cloneList;
+//    }
 }
