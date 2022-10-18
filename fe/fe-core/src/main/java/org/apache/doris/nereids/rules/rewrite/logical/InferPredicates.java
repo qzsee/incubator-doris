@@ -18,10 +18,9 @@
 package org.apache.doris.nereids.rules.rewrite.logical;
 
 import org.apache.doris.nereids.pattern.MatchingContext;
-import org.apache.doris.nereids.rules.PlanRuleFactory;
 import org.apache.doris.nereids.rules.Rule;
-import org.apache.doris.nereids.rules.RulePromise;
 import org.apache.doris.nereids.rules.RuleType;
+import org.apache.doris.nereids.rules.rewrite.RewriteRuleFactory;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.plans.JoinType;
 import org.apache.doris.nereids.trees.plans.Plan;
@@ -32,7 +31,6 @@ import org.apache.doris.nereids.util.ExpressionUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -41,9 +39,9 @@ import java.util.stream.Collectors;
 /**
  * infer additional predicates for filter and join.
  */
-public class InferPredicates implements PlanRuleFactory {
+public class InferPredicates implements RewriteRuleFactory {
     PredicatePropagation propagation = new PredicatePropagation();
-    EffectivePredicatesExtractor predicatesExtractor = new EffectivePredicatesExtractor();
+    PullUpPredicates predicatesExtractor = new PullUpPredicates();
 
     @Override
     public List<Rule> buildRules() {
@@ -117,14 +115,10 @@ public class InferPredicates implements PlanRuleFactory {
 
     private List<Expression> inferNewPredicate(Plan originalPlan, Set<Expression> expressions) {
         List<Expression> predicates = expressions.stream()
-                .filter(c -> !c.getInputSlots().isEmpty() && new HashSet<>(originalPlan.getOutput()).containsAll(
+                .filter(c -> !c.getInputSlots().isEmpty() && originalPlan.getOutputSet().containsAll(
                         c.getInputSlots())).collect(Collectors.toList());
         predicates.removeAll(originalPlan.accept(predicatesExtractor, null));
         return predicates;
     }
-
-    @Override
-    public RulePromise defaultPromise() {
-        return RulePromise.REWRITE;
-    }
 }
+

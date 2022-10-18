@@ -34,7 +34,6 @@ import org.apache.doris.nereids.util.ExpressionUtils;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -44,7 +43,7 @@ import java.util.stream.Collectors;
 /**
  * extract effective predicates.
  */
-public class EffectivePredicatesExtractor extends PlanVisitor<Set<Expression>, Void> {
+public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
 
     PredicatePropagation propagation = new PredicatePropagation();
 
@@ -55,7 +54,7 @@ public class EffectivePredicatesExtractor extends PlanVisitor<Set<Expression>, V
 
     @Override
     public Set<Expression> visitLogicalFilter(LogicalFilter<? extends Plan> filter, Void context) {
-        List<Expression> predicates = ExpressionUtils.extractConjunction(filter.getPredicates()).stream()
+        List<Expression> predicates = filter.getConjuncts().stream()
                 .filter(p -> {
                     if (p instanceof SubqueryExpr) {
                         SubqueryExpr subqueryExpr = (SubqueryExpr) p;
@@ -139,19 +138,11 @@ public class EffectivePredicatesExtractor extends PlanVisitor<Set<Expression>, V
     public Set<Expression> getAvailableExpressions(Set<Expression> predicates, Plan plan) {
         predicates.addAll(propagation.infer(Lists.newArrayList(predicates)));
         return predicates.stream()
-                .filter(p -> new HashSet<>(plan.getOutput()).containsAll(p.getInputSlots()))
+                .filter(p -> plan.getOutputSet().containsAll(p.getInputSlots()))
                 .collect(Collectors.toSet());
     }
 
     private boolean hasAgg(Expression expression) {
-        if (expression instanceof AggregateFunction) {
-            return true;
-        }
-        for (Expression child : expression.children()) {
-            if (hasAgg(child)) {
-                return true;
-            }
-        }
-        return false;
+        return expression.anyMatch(AggregateFunction.class::isInstance);
     }
 }
