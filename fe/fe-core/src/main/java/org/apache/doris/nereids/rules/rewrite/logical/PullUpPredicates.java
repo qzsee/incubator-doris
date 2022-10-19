@@ -45,10 +45,11 @@ import java.util.stream.Collectors;
  */
 public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
 
-    PredicatePropagation propagation = new PredicatePropagation();
-
     @Override
     public Set<Expression> visit(Plan plan, Void context) {
+        if (plan.arity() == 1) {
+            return plan.child(0).accept(this, context);
+        }
         return Sets.newHashSet();
     }
 
@@ -63,7 +64,7 @@ public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
                     return true;
                 }).collect(Collectors.toList());
         predicates.addAll(filter.child().accept(this, context));
-        return getAvailableExpressions(Sets.newHashSet(predicates), filter);
+        return Sets.newHashSet(predicates);
     }
 
     @Override
@@ -96,7 +97,7 @@ public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
                 break;
             default:
         }
-        return getAvailableExpressions(predicates, join);
+        return Sets.newHashSet(predicates);
     }
 
     @Override
@@ -108,9 +109,7 @@ public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
                 .collect(Collectors.toMap(Entry::getValue, Entry::getKey));
         Expression expression = ExpressionUtils.replace(ExpressionUtils.and(Lists.newArrayList(childPredicates)),
                 expressionSlotMap);
-        Set<Expression> predicates = Sets.newHashSet();
-        predicates.addAll(ExpressionUtils.extractConjunction(expression));
-        return getAvailableExpressions(predicates, project);
+        return Sets.newHashSet(ExpressionUtils.extractConjunction(expression));
     }
 
     @Override
@@ -130,16 +129,7 @@ public class PullUpPredicates extends PlanVisitor<Set<Expression>, Void> {
                 );
         Expression expression = ExpressionUtils.replace(ExpressionUtils.and(Lists.newArrayList(childPredicates)),
                 expressionSlotMap);
-        Set<Expression> predicates = Sets.newHashSet();
-        predicates.addAll(ExpressionUtils.extractConjunction(expression));
-        return getAvailableExpressions(predicates, aggregate);
-    }
-
-    public Set<Expression> getAvailableExpressions(Set<Expression> predicates, Plan plan) {
-        predicates.addAll(propagation.infer(Lists.newArrayList(predicates)));
-        return predicates.stream()
-                .filter(p -> plan.getOutputSet().containsAll(p.getInputSlots()))
-                .collect(Collectors.toSet());
+        return Sets.newHashSet(ExpressionUtils.extractConjunction(expression));
     }
 
     private boolean hasAgg(Expression expression) {

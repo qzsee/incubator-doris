@@ -56,12 +56,10 @@ public class InferPredicates implements RewriteRuleFactory {
             LogicalFilter<Plan> root = ctx.root;
             Plan filter = getOriginalPlan(ctx, root);
             Set<Expression> filterPredicates = filter.accept(predicatesExtractor, null);
-            Set<Expression> filterChildPredicates = filter.child(0).accept(predicatesExtractor, null);
-            filterPredicates.removeAll(filterChildPredicates);
-            ExpressionUtils.extractConjunction(root.getPredicates()).forEach(filterPredicates::remove);
-            if (!filterPredicates.isEmpty()) {
-                filterPredicates.add(root.getPredicates());
-                return new LogicalFilter<>(ExpressionUtils.and(Lists.newArrayList(filterPredicates)), root.child());
+            Set<Expression> newPredicates = propagation.infer(filterPredicates);
+            if (!newPredicates.isEmpty()) {
+                newPredicates.add(root.getPredicates());
+                return new LogicalFilter<>(ExpressionUtils.and(Lists.newArrayList(newPredicates)), root.child());
             }
             return root;
         }).toRule(RuleType.INFER_PREDICATES_FOR_WHERE);
@@ -109,7 +107,7 @@ public class InferPredicates implements RewriteRuleFactory {
         Set<Expression> baseExpressions = left.accept(predicatesExtractor, null);
         baseExpressions.addAll(right.accept(predicatesExtractor, null));
         condition.ifPresent(on -> baseExpressions.addAll(ExpressionUtils.extractConjunction(on)));
-        baseExpressions.addAll(propagation.infer(Lists.newArrayList(baseExpressions)));
+        baseExpressions.addAll(propagation.infer(baseExpressions));
         return baseExpressions;
     }
 
