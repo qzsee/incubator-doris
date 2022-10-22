@@ -53,6 +53,9 @@ public class InferPredicates implements RewriteRuleFactory {
 
     private Rule inferWhere() {
         return logicalFilter(any()).thenApply(ctx -> {
+            if (!ctx.connectContext.getSessionVariable().isEnableInferPredicate()) {
+                return null;
+            }
             LogicalFilter<Plan> root = ctx.root;
             Plan filter = getOriginalPlan(ctx, root);
             Set<Expression> filterPredicates = filter.accept(predicatesExtractor, null);
@@ -69,6 +72,9 @@ public class InferPredicates implements RewriteRuleFactory {
 
     private Rule inferOn() {
         return logicalJoin(any(), any()).thenApply(ctx -> {
+            if (!ctx.connectContext.getSessionVariable().isEnableInferPredicate()) {
+                return null;
+            }
             LogicalJoin<Plan, Plan> root = ctx.root;
             JoinType joinType = root.getJoinType();
             Plan left = root.left();

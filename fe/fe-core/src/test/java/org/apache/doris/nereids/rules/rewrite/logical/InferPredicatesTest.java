@@ -51,6 +51,27 @@ public class InferPredicatesTest extends TestWithFeService implements PatternMat
                 + "distributed by hash(id) buckets 10\n"
                 + "properties('replication_num' = '1');");
 
+        createTables("create table test.subquery1\n"
+                        + "(k1 bigint, k2 bigint)\n"
+                        + "duplicate key(k1)\n"
+                        + "distributed by hash(k2) buckets 1\n"
+                        + "properties('replication_num' = '1');\n",
+                "create table test.subquery2\n"
+                        + "(k1 varchar(10), k2 bigint)\n"
+                        + "partition by range(k2)\n"
+                        + "(partition p1 values less than(\"10\"))\n"
+                        + "distributed by hash(k2) buckets 1\n"
+                        + "properties('replication_num' = '1');",
+                "create table test.subquery3\n"
+                        + "(k1 int not null, k2 varchar(128), k3 bigint, v1 bigint, v2 bigint)\n"
+                        + "distributed by hash(k2) buckets 1\n"
+                        + "properties('replication_num' = '1');",
+                "create table test.subquery4\n"
+                        + "(k1 bigint, k2 bigint)\n"
+                        + "duplicate key(k1)\n"
+                        + "distributed by hash(k2) buckets 1\n"
+                        + "properties('replication_num' = '1');");
+
         connectContext.setDatabase("default_cluster:test");
     }
 
@@ -463,5 +484,42 @@ public class InferPredicatesTest extends TestWithFeService implements PatternMat
                                 )
                         )
                 );
+    }
+
+    @Test
+    public void inferPredicatesTest19() {
+        String sql = "select * from subquery1 left semi join (select t1.k3 from (select * from subquery3 left semi join  (select k1 from subquery4 where k1 = 3) t on subquery3.k3 = t.k1) t1 inner join (select k2,sum(k2) as sk2 from subquery2 group by k2) t2 on t2.k2 = t1.v1 and t1.v2 > t2.sk2) t3 on t3.k3 = subquery1.k1";
+        Plan plan = PlanChecker.from(connectContext).analyze(sql).rewrite().getPlan();
+        PlanChecker.from(connectContext)
+                .analyze(sql)
+                .rewrite()
+                .matchesFromRoot(
+                        logicalProject(
+                                logicalJoin(
+                                        logicalFilter(
+                                                logicalOlapScan()
+                                        ).when(filter -> filter.getPredicates().toSql().contains("k1 = 3")),
+                                        logicalProject(
+                                                logicalJoin(
+                                                       logicalProject(
+                                                               logicalJoin(
+                                                                       logicalFilter(
+                                                                               logicalOlapScan()
+                                                                       ).when(filter -> filter.getPredicates().toSql().contains("k3 = 3")),
+                                                                       logicalProject(
+                                                                               logicalFilter(
+                                                                                       logicalOlapScan()
+                                                                               ).when(filter -> filter.getPredicates().toSql().contains("k1 = 3"))
+                                                                       )
+                                                               )
+                                                       ),
+                                                        logicalProject()
+                                                )
+                                        )
+                                )
+                        )
+                );
+
+        System.out.println(plan.treeString());
     }
 }
