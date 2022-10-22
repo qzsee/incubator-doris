@@ -64,7 +64,7 @@ public class NereidsRewriteJobExecutor extends BatchRulesJob {
                 .add(topDownBatch(ImmutableList.of(new ExpressionOptimization())))
                 .add(topDownBatch(ImmutableList.of(new ExtractSingleTableExpressionFromDisjunction())))
                 .add(topDownBatch(ImmutableList.of(new NormalizeAggregate())))
-                .add(topDownBatch(ImmutableList.of(new MergeFilters())))
+                .add(topDownBatch(RuleSet.PUSH_DOWN_JOIN_CONDITION_RULES, false))
                 .add(topDownBatch(ImmutableList.of(new ReorderJoin())))
                 .add(topDownBatch(ImmutableList.of(new ColumnPruning())))
                 .add(topDownBatch(RuleSet.PUSH_DOWN_JOIN_CONDITION_RULES, false))
