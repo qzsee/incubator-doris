@@ -99,7 +99,7 @@ public abstract class BatchRulesJob {
                 cascadesContext.pushJob(job);
                 cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
             } while (!job.isOnce() && cascadesContext.getCurrentJobContext().isRewritten());
-            System.out.println(cascadesContext.getMemo().copyOut().treeString());
+            //System.out.println(cascadesContext.getMemo().copyOut().treeString());
             System.out.println();
         }
     }
