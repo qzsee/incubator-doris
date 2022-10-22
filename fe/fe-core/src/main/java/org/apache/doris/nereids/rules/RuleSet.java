@@ -75,7 +75,7 @@ public class RuleSet {
     public static final List<RuleFactory> PUSH_DOWN_JOIN_CONDITION_RULES = ImmutableList.of(
             new PushdownJoinOtherCondition(),
             new PushdownFilterThroughJoin(),
-            //new InferPredicates(),
+            new InferPredicates(),
             new PushdownExpressionsInHashCondition(),
             new PushdownProjectThroughLimit(),
             new PushdownFilterThroughProject(),
