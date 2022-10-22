@@ -77,7 +77,7 @@ public class InferPredicates implements RewriteRuleFactory {
             Plan originalRight = getOriginalPlan(ctx, right);
             Optional<Expression> condition = root.getOnClauseCondition();
             Set<Expression> expressions = getAllExpressions(originalLeft, originalRight, condition);
-            List<Expression> otherJoinConjuncts = root.getOtherJoinConjuncts();
+            List<Expression> otherJoinConjuncts = Lists.newArrayList(root.getOtherJoinConjuncts());
             switch (joinType) {
                 case INNER_JOIN:
                 case CROSS_JOIN:
