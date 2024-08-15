@@ -20,8 +20,10 @@ package org.apache.doris.policy;
 import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.ScalarType;
+import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.mysql.privilege.DataMaskPolicy;
+import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.qe.ShowResultSetMetaData;
 
 import com.google.common.collect.Lists;
@@ -159,5 +161,53 @@ public class DorisDataMaskPolicy extends Policy implements DataMaskPolicy {
             && (StringUtils.isEmpty(roleName) || StringUtils.equals(roleName, this.roleName))
             && (user == null || Objects.equals(user, this.user))
             && (maskType == null || Objects.equals(maskType, this.maskType));
+    }
+
+    public String getDataTypeDefaultValue(Slot slot) {
+        Type dataType = slot.getDataType().toCatalogDataType();
+        if (dataType instanceof ScalarType) {
+            switch (dataType.getPrimitiveType()) {
+                case BOOLEAN:
+                    return "FALSE";
+                case TINYINT:
+                case SMALLINT:
+                case INT:
+                case BIGINT:
+                case LARGEINT:
+                    return "0";
+                case CHAR:
+                case VARCHAR:
+                case STRING:
+                    return "";
+                case FLOAT:
+                case DOUBLE:
+                case DECIMALV2:
+                case DECIMAL32:
+                case DECIMAL64:
+                case DECIMAL128:
+                case DECIMAL256:
+                    return "0.0";
+                case DATEV2:
+                case DATE:
+                    return "1970-01-01";
+                case TIME:
+                case TIMEV2:
+                    return "00:00:00";
+                case DATETIME:
+                case DATETIMEV2:
+                    return "1970-01-01 00:00:00";
+                case IPV4:
+                    return "0.0.0.0";
+                case ARRAY:
+                    return "[]";
+                case MAP:
+                case JSONB:
+                case STRUCT:
+                    return "{}";
+                default:
+                    return "NULL";
+            }
+        }
+        return "NULL";
     }
 }

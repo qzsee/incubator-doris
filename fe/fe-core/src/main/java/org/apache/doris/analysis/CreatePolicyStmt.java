@@ -189,6 +189,8 @@ public class CreatePolicyStmt extends DdlStmt implements NotFallbackInParser {
                 }
                 sb.append(" USING ").append(dataMaskType);
                 break;
+            default:
+                throw new RuntimeException("no support type : " + type);
         }
         return sb.toString();
     }
