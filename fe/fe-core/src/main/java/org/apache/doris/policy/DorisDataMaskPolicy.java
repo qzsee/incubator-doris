@@ -23,7 +23,10 @@ import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.mysql.privilege.DataMaskPolicy;
+import org.apache.doris.nereids.parser.NereidsParser;
+import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.Slot;
+import org.apache.doris.nereids.trees.expressions.literal.StringLiteral;
 import org.apache.doris.qe.ShowResultSetMetaData;
 
 import com.google.common.collect.Lists;
@@ -121,6 +124,14 @@ public class DorisDataMaskPolicy extends Policy implements DataMaskPolicy {
     }
 
     @Override
+    public Expression parseMaskTypeDef(NereidsParser parser, Slot slot) {
+        if (maskType == DataMaskType.MASK_DEFAULT) {
+            StringLiteral.of(getDataTypeDefaultValue(slot));
+        }
+        return parser.parseExpression(getMaskTypeDef());
+    }
+
+    @Override
     public void gsonPostProcess() throws IOException {
 
     }
@@ -139,9 +150,6 @@ public class DorisDataMaskPolicy extends Policy implements DataMaskPolicy {
 
     @Override
     public boolean matchPolicy(Policy checkedPolicyCondition) {
-        if (!(checkedPolicyCondition instanceof DorisDataMaskPolicy)) {
-            return false;
-        }
         DorisDataMaskPolicy maskPolicy = (DorisDataMaskPolicy) checkedPolicyCondition;
         return checkMatched(maskPolicy.getCtlName(), maskPolicy.getDbName(), maskPolicy.getTableName(),
             maskPolicy.getColName(), maskPolicy.getType(), maskPolicy.getPolicyName(), maskPolicy.getUser(),

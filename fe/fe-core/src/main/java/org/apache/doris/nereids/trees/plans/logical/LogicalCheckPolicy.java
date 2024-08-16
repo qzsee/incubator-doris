@@ -35,7 +35,6 @@ import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.NamedExpression;
 import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.StatementScopeIdGenerator;
-import org.apache.doris.nereids.trees.expressions.literal.StringLiteral;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.PlanType;
 import org.apache.doris.nereids.trees.plans.PropagateFuncDeps;
@@ -43,8 +42,6 @@ import org.apache.doris.nereids.trees.plans.algebra.CatalogRelation;
 import org.apache.doris.nereids.trees.plans.visitor.PlanVisitor;
 import org.apache.doris.nereids.util.ExpressionUtils;
 import org.apache.doris.nereids.util.Utils;
-import org.apache.doris.policy.DataMaskType;
-import org.apache.doris.policy.DorisDataMaskPolicy;
 import org.apache.doris.qe.ConnectContext;
 
 import com.google.common.base.Preconditions;
@@ -159,7 +156,7 @@ public class LogicalCheckPolicy<CHILD_TYPE extends Plan> extends LogicalUnary<CH
             Optional<DataMaskPolicy> dataMaskPolicy = accessManager.evalDataMaskPolicy(
                     currentUserIdentity, ctlName, dbName, tableName, slot.getName());
             if (dataMaskPolicy.isPresent()) {
-                Expression unboundExpr = getMaskTypeDef(nereidsParser, dataMaskPolicy.get(), slot);
+                Expression unboundExpr = dataMaskPolicy.get().parseMaskTypeDef(nereidsParser, slot);
                 Expression childOfAlias
                         = unboundExpr instanceof UnboundAlias ? unboundExpr.child(0) : unboundExpr;
                 Alias alias = new Alias(
@@ -232,15 +229,5 @@ public class LogicalCheckPolicy<CHILD_TYPE extends Plan> extends LogicalUnary<CH
             this.rowPolicyFilter = rowPolicyFilter;
             this.dataMaskProjects = dataMaskProjects;
         }
-    }
-
-    private Expression getMaskTypeDef(NereidsParser parser, DataMaskPolicy dataMaskPolicy, Slot slot) {
-        if (dataMaskPolicy instanceof DorisDataMaskPolicy) {
-            DorisDataMaskPolicy policy = (DorisDataMaskPolicy) dataMaskPolicy;
-            if (policy.getMaskType() == DataMaskType.MASK_DEFAULT) {
-                return StringLiteral.of(policy.getDataTypeDefaultValue(slot));
-            }
-        }
-        return parser.parseExpression(dataMaskPolicy.getMaskTypeDef());
     }
 }

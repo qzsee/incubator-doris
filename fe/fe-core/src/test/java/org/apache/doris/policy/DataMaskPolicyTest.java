@@ -18,6 +18,8 @@
 package org.apache.doris.policy;
 
 import org.apache.doris.common.FeConstants;
+import org.apache.doris.nereids.parser.NereidsParser;
+import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.utframe.TestWithFeService;
 
 import org.junit.jupiter.api.Assertions;
@@ -84,6 +86,7 @@ public class DataMaskPolicyTest extends TestWithFeService {
         }
         // case 3: and same as case 2 policy. should throw exception
         sql = "create data mask policy test2 on internal.test.table1.k2 to jack using MASK_HASH";
+        //getSqlStmtExecutor(sql);
         Assertions.assertNull(getSqlStmtExecutor(sql));
         //case 3: drop a policy
         sql = "drop data mask policy test1";
@@ -126,5 +129,12 @@ public class DataMaskPolicyTest extends TestWithFeService {
         sql = "drop data mask policy test";
         useUser("root");
         Assertions.assertNotNull(getSqlStmtExecutor(sql));
+    }
+
+    @Test
+    public void testDataMaskForQuery1() throws Exception {
+        NereidsParser parser = new NereidsParser();
+        Expression xxxx = parser.parseExpression("1+1");
+        System.out.println(xxxx);
     }
 }

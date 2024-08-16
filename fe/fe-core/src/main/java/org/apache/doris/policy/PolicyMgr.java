@@ -141,6 +141,10 @@ public class PolicyMgr implements Writable {
                 if (stmt.isIfNotExists()) {
                     return;
                 }
+                if (policy instanceof DorisDataMaskPolicy) {
+                    throw new DdlException("The policy name already exists or a policy of the same type already "
+                        + "exists");
+                }
                 throw new DdlException("the policy " + policy.getPolicyName() + " already create");
             }
             unprotectedAdd(policy);
