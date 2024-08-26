@@ -153,6 +153,7 @@ import org.apache.doris.nereids.DorisParser.PropertyItemListContext;
 import org.apache.doris.nereids.DorisParser.PropertyKeyContext;
 import org.apache.doris.nereids.DorisParser.PropertyValueContext;
 import org.apache.doris.nereids.DorisParser.QualifiedNameContext;
+import org.apache.doris.nereids.DorisParser.QualifyClauseContext;
 import org.apache.doris.nereids.DorisParser.QueryContext;
 import org.apache.doris.nereids.DorisParser.QueryOrganizationContext;
 import org.apache.doris.nereids.DorisParser.QueryTermContext;
@@ -233,6 +234,7 @@ import org.apache.doris.nereids.properties.SelectHintLeading;
 import org.apache.doris.nereids.properties.SelectHintOrdered;
 import org.apache.doris.nereids.properties.SelectHintSetVar;
 import org.apache.doris.nereids.properties.SelectHintUseCboRule;
+import org.apache.doris.nereids.rules.expression.ExpressionRuleExecutor;
 import org.apache.doris.nereids.trees.TableSample;
 import org.apache.doris.nereids.trees.expressions.Add;
 import org.apache.doris.nereids.trees.expressions.And;
@@ -242,6 +244,7 @@ import org.apache.doris.nereids.trees.expressions.BitOr;
 import org.apache.doris.nereids.trees.expressions.BitXor;
 import org.apache.doris.nereids.trees.expressions.CaseWhen;
 import org.apache.doris.nereids.trees.expressions.Cast;
+import org.apache.doris.nereids.trees.expressions.ComparisonPredicate;
 import org.apache.doris.nereids.trees.expressions.DefaultValueSlot;
 import org.apache.doris.nereids.trees.expressions.Divide;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
@@ -348,6 +351,7 @@ import org.apache.doris.nereids.trees.expressions.literal.DateV2Literal;
 import org.apache.doris.nereids.trees.expressions.literal.DecimalLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.DecimalV3Literal;
 import org.apache.doris.nereids.trees.expressions.literal.DoubleLiteral;
+import org.apache.doris.nereids.trees.expressions.literal.IntegerLikeLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.IntegerLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Interval;
 import org.apache.doris.nereids.trees.expressions.literal.LargeIntLiteral;
@@ -1370,7 +1374,9 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                     selectCtx,
                     Optional.ofNullable(ctx.whereClause()),
                     Optional.ofNullable(ctx.aggClause()),
-                    Optional.ofNullable(ctx.havingClause()));
+                    Optional.ofNullable(ctx.havingClause()),
+                    Optional.ofNullable(ctx.qualifyClause()));
+            selectPlan = withQualifyQuery(selectPlan, ctx);
             selectPlan = withQueryOrganization(selectPlan, ctx.queryOrganization());
             if ((selectHintMap == null) || selectHintMap.isEmpty()) {
                 return selectPlan;
@@ -1383,6 +1389,67 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             }
             return withSelectHint(selectPlan, selectHintContexts);
         });
+    }
+
+    private LogicalPlan withQualifyQuery(LogicalPlan input, RegularQuerySpecificationContext ctx) {
+        QualifyClauseContext qualifyClauseContext = ctx.qualifyClause();
+        if (qualifyClauseContext != null) {
+            NamedExpression qualifyExpr = visitNamedExpression(qualifyClauseContext.namedExpression());
+            Expression filter;
+            List<NamedExpression> excepts = new ArrayList<>();
+            if (qualifyExpr instanceof UnboundAlias) {
+                Expression cmp = qualifyExpr.child(0);
+                if (!(cmp instanceof ComparisonPredicate)) {
+                    throw new ParseException("only support compare expr");
+                }
+                cmp = ExpressionRuleExecutor.normalize(cmp);
+                Expression left = cmp.child(0);
+                if (left instanceof WindowExpression) {
+                    WindowExpression windowExpression = (WindowExpression) left;
+                    String funName = windowExpression.getFunction().getExpressionName();
+                    switch (funName.toLowerCase()) {
+                        case "row_number":
+                        case "rank":
+                        case "dense_rank":
+                            break;
+                        default:
+                            throw new ParseException("not support window function : " + funName);
+                    }
+                    excepts.add(new UnboundSlot("_QUALIFY_COLUMN"));
+                }
+                if (left instanceof UnboundSlot) {
+                    left = new UnboundSlot(((UnboundSlot) left).getNameParts());
+                } else {
+                    left = new UnboundSlot("_QUALIFY_COLUMN");
+                }
+                Expression right = cmp.child(1);
+                if (!(right instanceof IntegerLikeLiteral)) {
+                    throw new ParseException("qualify expression only support constant compare");
+                }
+                if (cmp instanceof EqualTo) {
+                    filter = new EqualTo(left, right);
+                } else if (cmp instanceof GreaterThan) {
+                    filter = new GreaterThan(left, right);
+                } else if (cmp instanceof GreaterThanEqual) {
+                    filter = new GreaterThanEqual(left, right);
+                } else if (cmp instanceof LessThan) {
+                    filter = new LessThan(left, right);
+                } else if (cmp instanceof LessThanEqual) {
+                    filter = new LessThanEqual(left, right);
+                } else {
+                    throw new ParseException("not support compare type " + cmp.getClass().getSimpleName());
+                }
+            } else {
+                throw new ParseException("not support column type");
+            }
+            LogicalSubQueryAlias<LogicalPlan> qualifyTable = new LogicalSubQueryAlias<>("_QUALIFY_TABLE", input);
+            LogicalFilter<LogicalSubQueryAlias<LogicalPlan>> logicalFilter
+                    = new LogicalFilter<>(Sets.newHashSet(filter), qualifyTable);
+            List<NamedExpression> output =
+                    Lists.newArrayList(new UnboundStar(ImmutableList.of(), excepts, ImmutableList.of()));
+            return new LogicalProject<>(output, logicalFilter);
+        }
+        return input;
     }
 
     @Override
@@ -3059,25 +3126,43 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             SelectClauseContext selectClause,
             Optional<WhereClauseContext> whereClause,
             Optional<AggClauseContext> aggClause,
-            Optional<HavingClauseContext> havingClause) {
+            Optional<HavingClauseContext> havingClause,
+            Optional<QualifyClauseContext> qualifyClauseContext) {
         return ParserUtils.withOrigin(ctx, () -> {
             // from -> where -> group by -> having -> select
             LogicalPlan filter = withFilter(inputRelation, whereClause);
             SelectColumnClauseContext selectColumnCtx = selectClause.selectColumnClause();
-            LogicalPlan aggregate = withAggregate(filter, selectColumnCtx, aggClause);
+            LogicalPlan aggregate = withAggregate(filter, selectColumnCtx, aggClause, qualifyClauseContext);
             boolean isDistinct = (selectClause.DISTINCT() != null);
             if (!(aggregate instanceof Aggregate) && havingClause.isPresent()) {
                 // create a project node for pattern match of ProjectToGlobalAggregate rule
                 // then ProjectToGlobalAggregate rule can insert agg node as LogicalHaving node's child
                 List<NamedExpression> projects = getNamedExpressions(selectColumnCtx.namedExpressionSeq());
+                projects = withQualifySlot(projects, qualifyClauseContext);
                 LogicalPlan project = new LogicalProject<>(projects, isDistinct, aggregate);
                 return new LogicalHaving<>(ExpressionUtils.extractConjunctionToSet(
                         getExpression((havingClause.get().booleanExpression()))), project);
             } else {
                 LogicalPlan having = withHaving(aggregate, havingClause);
-                return withProjection(having, selectColumnCtx, aggClause, isDistinct);
+                return withProjection(having, selectColumnCtx, aggClause, isDistinct, qualifyClauseContext);
             }
         });
+    }
+
+    private List<NamedExpression> withQualifySlot(List<NamedExpression> projects, Optional<QualifyClauseContext> ctx) {
+        List<NamedExpression> result = Lists.newLinkedList(projects);
+        if (ctx.isPresent()) {
+            NamedExpression qualifySlot = visitNamedExpression(ctx.get().namedExpression());
+            if (qualifySlot instanceof UnboundAlias) {
+                Expression cmp = qualifySlot.child(0);
+                cmp = ExpressionRuleExecutor.normalize(cmp);
+                if (cmp.child(0) instanceof WindowExpression) {
+                    qualifySlot = new UnboundAlias(cmp.child(0), "_QUALIFY_COLUMN");
+                    result.add(qualifySlot);
+                }
+            }
+        }
+        return ImmutableList.copyOf(result);
     }
 
     /**
@@ -3262,7 +3347,8 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     }
 
     protected LogicalPlan withProjection(LogicalPlan input, SelectColumnClauseContext selectCtx,
-            Optional<AggClauseContext> aggCtx, boolean isDistinct) {
+                                         Optional<AggClauseContext> aggCtx, boolean isDistinct,
+                                         Optional<QualifyClauseContext> qualifyClauseContext) {
         return ParserUtils.withOrigin(selectCtx, () -> {
             if (aggCtx.isPresent()) {
                 if (isDistinct) {
@@ -3273,6 +3359,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                 }
             } else {
                 List<NamedExpression> projects = getNamedExpressions(selectCtx.namedExpressionSeq());
+                projects = withQualifySlot(projects, qualifyClauseContext);
                 if (input instanceof UnboundOneRowRelation) {
                     if (projects.stream().anyMatch(project -> project instanceof UnboundStar)) {
                         throw new ParseException("SELECT * must have a FROM clause");
@@ -3312,10 +3399,12 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     }
 
     private LogicalPlan withAggregate(LogicalPlan input, SelectColumnClauseContext selectCtx,
-                                      Optional<AggClauseContext> aggCtx) {
+                                      Optional<AggClauseContext> aggCtx,
+                                      Optional<QualifyClauseContext> qualifyClauseContext) {
         return input.optionalMap(aggCtx, () -> {
             GroupingElementContext groupingElementContext = aggCtx.get().groupingElement();
             List<NamedExpression> namedExpressions = getNamedExpressions(selectCtx.namedExpressionSeq());
+            namedExpressions = withQualifySlot(namedExpressions, qualifyClauseContext);
             if (groupingElementContext.GROUPING() != null) {
                 ImmutableList.Builder<List<Expression>> groupingSets = ImmutableList.builder();
                 for (GroupingSetContext groupingSetContext : groupingElementContext.groupingSet()) {
