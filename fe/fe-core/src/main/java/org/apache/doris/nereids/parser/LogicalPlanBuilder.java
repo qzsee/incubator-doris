@@ -1442,14 +1442,13 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             } else {
                 throw new ParseException("not support column type");
             }
-            LogicalSubQueryAlias<LogicalPlan> qualifyTable = new LogicalSubQueryAlias<>("_QUALIFY_TABLE", input);
-            LogicalFilter<LogicalSubQueryAlias<LogicalPlan>> logicalFilter
-                    = new LogicalFilter<>(Sets.newHashSet(filter), qualifyTable);
+            LogicalFilter<LogicalPlan> logicalFilter = new LogicalFilter<>(Sets.newHashSet(filter), input);
             List<NamedExpression> output =
                     Lists.newArrayList(new UnboundStar(ImmutableList.of(), excepts, ImmutableList.of()));
-            return new LogicalProject<>(output, logicalFilter);
+            LogicalPlan plan = withQueryOrganization(logicalFilter, ctx.queryOrganization());
+            return new LogicalProject<>(output, plan);
         }
-        return input;
+        return withQueryOrganization(input, ctx.queryOrganization());
     }
 
     @Override
