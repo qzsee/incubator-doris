@@ -20,6 +20,7 @@ package org.apache.doris.planner;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.utframe.TestWithFeService;
 import org.apache.doris.utframe.UtFrameUtils;
+
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
@@ -29,16 +30,16 @@ public class QualifyQueryTest extends TestWithFeService {
         FeConstants.runningUnitTest = true;
         createDatabase("test");
         connectContext.setDatabase("test");
-        createTable("CREATE TABLE sales (\n" +
-            "   year INT,\n" +
-            "   country STRING,\n" +
-            "   product STRING,\n" +
-            "   profit INT\n" +
-            ") \n" +
-            "DISTRIBUTED BY HASH(`year`)\n" +
-            "PROPERTIES (\n" +
-            "\"replication_num\" = \"1\"\n" +
-            ");");
+        createTable("CREATE TABLE sales (\n"
+                + "   year INT,\n"
+                + "   country STRING,\n"
+                + "   product STRING,\n"
+                + "   profit INT\n"
+                + ") \n"
+                + "DISTRIBUTED BY HASH(`year`)\n"
+                + "PROPERTIES (\n"
+                + "\"replication_num\" = \"1\"\n"
+                 + ");");
     }
 
     @Test
