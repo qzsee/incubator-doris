@@ -1377,7 +1377,6 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                     Optional.ofNullable(ctx.havingClause()),
                     Optional.ofNullable(ctx.qualifyClause()));
             selectPlan = withQualifyQuery(selectPlan, ctx);
-            selectPlan = withQueryOrganization(selectPlan, ctx.queryOrganization());
             if ((selectHintMap == null) || selectHintMap.isEmpty()) {
                 return selectPlan;
             }
