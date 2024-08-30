@@ -235,7 +235,6 @@ import org.apache.doris.nereids.properties.SelectHintLeading;
 import org.apache.doris.nereids.properties.SelectHintOrdered;
 import org.apache.doris.nereids.properties.SelectHintSetVar;
 import org.apache.doris.nereids.properties.SelectHintUseCboRule;
-import org.apache.doris.nereids.rules.expression.ExpressionRuleExecutor;
 import org.apache.doris.nereids.trees.TableSample;
 import org.apache.doris.nereids.trees.expressions.Add;
 import org.apache.doris.nereids.trees.expressions.And;
@@ -245,7 +244,6 @@ import org.apache.doris.nereids.trees.expressions.BitOr;
 import org.apache.doris.nereids.trees.expressions.BitXor;
 import org.apache.doris.nereids.trees.expressions.CaseWhen;
 import org.apache.doris.nereids.trees.expressions.Cast;
-import org.apache.doris.nereids.trees.expressions.ComparisonPredicate;
 import org.apache.doris.nereids.trees.expressions.DefaultValueSlot;
 import org.apache.doris.nereids.trees.expressions.Divide;
 import org.apache.doris.nereids.trees.expressions.EqualTo;
@@ -342,7 +340,6 @@ import org.apache.doris.nereids.trees.expressions.functions.scalar.YearFloor;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsAdd;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsDiff;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsSub;
-import org.apache.doris.nereids.trees.expressions.functions.window.WindowFunction;
 import org.apache.doris.nereids.trees.expressions.literal.ArrayLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.BigIntLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
@@ -353,7 +350,6 @@ import org.apache.doris.nereids.trees.expressions.literal.DateV2Literal;
 import org.apache.doris.nereids.trees.expressions.literal.DecimalLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.DecimalV3Literal;
 import org.apache.doris.nereids.trees.expressions.literal.DoubleLiteral;
-import org.apache.doris.nereids.trees.expressions.literal.IntegerLikeLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.IntegerLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.Interval;
 import org.apache.doris.nereids.trees.expressions.literal.LargeIntLiteral;
@@ -3117,30 +3113,21 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
 
     private List<NamedExpression> withQualifySlot(List<NamedExpression> projects, Optional<QualifyClauseContext> ctx) {
         List<NamedExpression> result = Lists.newLinkedList(projects);
-        Expression qualifyExpr = getExpression(ctx.get().booleanExpression());
-        Reference<WindowExpression> wer = new Reference<>();
-        qualifyExpr.accept(new DefaultExpressionVisitor<Void, Reference<WindowExpression>>() {
-            @Override
-            public Void visitWindow(WindowExpression windowExpression, Reference<WindowExpression> context) {
-                context.setRef(windowExpression);
-                return null;
-            }
+        if (ctx.isPresent()) {
+            Expression qualifyExpr = getExpression(ctx.get().booleanExpression());
+            Reference<WindowExpression> wer = new Reference<>();
+            qualifyExpr.accept(new DefaultExpressionVisitor<Void, Reference<WindowExpression>>() {
+                @Override
+                public Void visitWindow(WindowExpression windowExpression, Reference<WindowExpression> context) {
+                    context.setRef(windowExpression);
+                    return null;
+                }
 
-        }, wer);
-        if (wer.getRef() != null) {
-            result.add(new UnboundAlias(wer.getRef(), "_QUALIFY_COLUMN"));
+            }, wer);
+            if (wer.getRef() != null) {
+                result.add(new UnboundAlias(wer.getRef(), "_QUALIFY_COLUMN"));
+            }
         }
-//        if (ctx.isPresent()) {
-//            Expression qualifySlot = getExpression(ctx.get().booleanExpression());
-//            if (qualifySlot instanceof UnboundAlias) {
-//                Expression cmp = qualifySlot.child(0);
-//                cmp = ExpressionRuleExecutor.normalize(cmp);
-//                if (cmp.child(0) instanceof WindowExpression) {
-//                    qualifySlot = new UnboundAlias(cmp.child(0), "_QUALIFY_COLUMN");
-//                    result.add(qualifySlot);
-//                }
-//            }
-//        }
         return ImmutableList.copyOf(result);
     }
 

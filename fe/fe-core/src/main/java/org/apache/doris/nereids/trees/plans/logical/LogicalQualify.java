@@ -29,6 +29,7 @@ import org.apache.doris.nereids.trees.plans.visitor.PlanVisitor;
 import org.apache.doris.nereids.util.Utils;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import java.util.List;
@@ -65,12 +66,14 @@ public class LogicalQualify<CHILD_TYPE extends Plan> extends LogicalUnary<CHILD_
 
     @Override
     public Plan withGroupExpression(Optional<GroupExpression> groupExpression) {
-        return null;
+        return new LogicalQualify<>(conjuncts, groupExpression, Optional.of(getLogicalProperties()), child());
     }
 
     @Override
-    public Plan withGroupExprLogicalPropChildren(Optional<GroupExpression> groupExpression, Optional<LogicalProperties> logicalProperties, List<Plan> children) {
-        return null;
+    public Plan withGroupExprLogicalPropChildren(Optional<GroupExpression> groupExpression,
+                                                 Optional<LogicalProperties> logicalProperties, List<Plan> children) {
+        Preconditions.checkArgument(children.size() == 1);
+        return new LogicalQualify<>(conjuncts, groupExpression, logicalProperties, children.get(0));
     }
 
     @Override
@@ -104,11 +107,7 @@ public class LogicalQualify<CHILD_TYPE extends Plan> extends LogicalUnary<CHILD_
 
     @Override
     public List<? extends Expression> getExpressions() {
-        return null;
-    }
-
-    public LogicalQualify<Plan> withConjuncts(Set<Expression> conjuncts) {
-        return new LogicalQualify<>(conjuncts, Optional.empty(), Optional.of(getLogicalProperties()), child());
+        return ImmutableList.copyOf(conjuncts);
     }
 
     @Override
