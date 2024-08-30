@@ -47,20 +47,20 @@ suite("test_qualify_query") {
         (2001,'USA','TV',100);
         """
 
-    qt_select_1 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk > 1"
-    qt_select_2 "select year, country, profit from (select * from sales) a where year >= 2000 qualify row_number() over (order by year) > 1"
+    qt_select_1 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk > 1 order by year, country, profit"
+    qt_select_2 "select year, country, profit from (select * from sales) a where year >= 2000 qualify row_number() over (order by year) > 1 order by year, country, profit"
 
-    qt_select_3 "select country, sum(profit) as total, row_number() over (order by country) as rk from sales where year >= 2000 group by country having sum(profit) > 100 qualify rk > 1"
-    qt_select_4 "select country, sum(profit) as total from sales where year >= 2000 group by country having sum(profit) > 100 qualify row_number() over (order by country) > 1"
+    qt_select_3 "select country, sum(profit) as total, row_number() over (order by country) as rk from sales where year >= 2000 group by country having sum(profit) > 100 qualify rk > 1 order by country"
+    qt_select_4 "select country, sum(profit) as total from sales where year >= 2000 group by country having sum(profit) > 100 qualify row_number() over (order by country) > 1 order by country"
 
-    qt_select_5 "select country, sum(profit) as total, row_number() over (order by country) as rk from sales where year >= 2000 group by country qualify rk > 1"
-    qt_select_6 "select country, sum(profit) as total from sales where year >= 2000 group by country qualify row_number() over (order by country) > 1"
+    qt_select_5 "select country, sum(profit) as total, row_number() over (order by country) as rk from sales where year >= 2000 group by country qualify rk > 1 order by country"
+    qt_select_6 "select country, sum(profit) as total from sales where year >= 2000 group by country qualify row_number() over (order by country) > 1 order by country"
 
-    qt_select_7 "select year, country, product, profit, row_number() over (partition by year, country order by profit desc) as rk from sales where year >= 2000 qualify rk = 1 order by profit limit 2"
-    qt_select_8 "select year, country, product, profit from sales where year >= 2000 qualify row_number() over (partition by year, country order by profit desc) = 1 order by profit limit 2"
+    qt_select_7 "select year, country, product, profit, row_number() over (partition by year, country order by profit desc) as rk from sales where year >= 2000 qualify rk = 1 order by country, profit limit 2"
+    qt_select_8 "select year, country, product, profit from sales where year >= 2000 qualify row_number() over (partition by year, country order by profit desc) = 1 order by country, profit limit 2"
 
-    qt_select_9 "select year, country, profit, row_number() over (partition by year, country order by profit desc) as rk from (select * from sales) a where year >= 2000 having profit > 200 qualify rk = 1 order by profit limit 3"
-    qt_select_10 "select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1 order by profit limit 3"
+    qt_select_9 "select year, country, profit, row_number() over (partition by year, country order by profit desc) as rk from (select * from sales) a where year >= 2000 having profit > 200 qualify rk = 1 order by country, profit limit 3"
+    qt_select_10 "select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1 order by country, profit limit 3"
 
     qt_select_11 "select distinct year, row_number() over (order by year) as rk from sales group by year qualify rk = 1"
     qt_select_12 "select distinct year from sales group by year qualify row_number() over (order by year) = 1"
@@ -68,11 +68,11 @@ suite("test_qualify_query") {
     qt_select_13 "select year, country, profit from (select year, country, profit from (select year, country, profit, row_number() over (partition by year, country order by profit desc) as rk from (select * from sales) a where year >= 2000 having profit > 200) t where rk = 1) a where year >= 2000 qualify row_number() over (order by profit) = 1"
     qt_select_14 "select year, country, profit from (select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1) a qualify row_number() over (order by profit) = 1"
 
-    qt_select_15 "select * except(year) replace( profit+1 as profit), row_number() over (order by year) as rk from sales where year >= 2000 qualify rk > 1"
+    qt_select_15 "select * except(year) replace( profit+1 as profit), row_number() over (order by year) as rk from sales where year >= 2000 qualify rk > 1 order by country,product,profit"
 
-    qt_select_16 "select * except(year) replace( profit+1 as profit) from sales where year >= 2000 qualify row_number() over (order by year) > 1"
+    qt_select_16 "select * except(year) replace( profit+1 as profit) from sales where year >= 2000 qualify row_number() over (order by year) > 1 order by country,product,profit"
 
-    qt_select_17 "select year + 1, if(country = 'USA', 'usa' , country), case when profit < 200 then 200 else profit end as new_profit, row_number() over (partition by year, country order by profit desc) as rk from (select * from sales) a where year >= 2000 having profit > 200 qualify rk = 1 order by new_profit"
+    qt_select_17 "select year + 1 as year, if(country = 'USA', 'usa' , country) as country, case when profit < 200 then 200 else profit end as new_profit, row_number() over (partition by year, country order by profit desc) as rk from (select * from sales) a where year >= 2000 having profit > 200 qualify rk = 1 order by year,country,new_profit"
 
     qt_select_18 "select * from sales where year >= 2000 qualify row_number() over (partition by year order by profit desc, country) = 1 order by country"
 
