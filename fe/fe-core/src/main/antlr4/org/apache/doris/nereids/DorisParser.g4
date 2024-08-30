@@ -806,7 +806,7 @@ havingClause
     ;
 
 qualifyClause
-    : QUALIFY namedExpression
+    : QUALIFY booleanExpression
     ;
 
 selectHint: hintStatements+=hintStatement (COMMA? hintStatements+=hintStatement)* HINT_END;

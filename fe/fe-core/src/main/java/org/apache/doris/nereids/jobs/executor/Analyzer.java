@@ -43,6 +43,7 @@ import org.apache.doris.nereids.rules.analysis.NormalizeRepeat;
 import org.apache.doris.nereids.rules.analysis.OneRowRelationExtractAggregate;
 import org.apache.doris.nereids.rules.analysis.ProjectToGlobalAggregate;
 import org.apache.doris.nereids.rules.analysis.ProjectWithDistinctToAggregate;
+import org.apache.doris.nereids.rules.analysis.QualifyToFilter;
 import org.apache.doris.nereids.rules.analysis.ReplaceExpressionByChildOutput;
 import org.apache.doris.nereids.rules.analysis.SubqueryToApply;
 import org.apache.doris.nereids.rules.analysis.VariableToLiteral;
@@ -167,6 +168,7 @@ public class Analyzer extends AbstractBatchJobExecutor {
             topDown(new BuildAggForRandomDistributedTable()),
             topDown(new NormalizeAggregate()),
             topDown(new HavingToFilter()),
+            topDown(new QualifyToFilter()),
             bottomUp(new SemiJoinCommute()),
             bottomUp(
                     new CollectSubQueryAlias(),

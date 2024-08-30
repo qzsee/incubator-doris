@@ -33,6 +33,7 @@ import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.common.Pair;
+import org.apache.doris.common.Reference;
 import org.apache.doris.job.common.IntervalUnit;
 import org.apache.doris.load.loadv2.LoadTask;
 import org.apache.doris.mtmv.MTMVPartitionInfo.MTMVPartitionType;
@@ -341,6 +342,7 @@ import org.apache.doris.nereids.trees.expressions.functions.scalar.YearFloor;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsAdd;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsDiff;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.YearsSub;
+import org.apache.doris.nereids.trees.expressions.functions.window.WindowFunction;
 import org.apache.doris.nereids.trees.expressions.literal.ArrayLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.BigIntLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.BooleanLiteral;
@@ -364,6 +366,8 @@ import org.apache.doris.nereids.trees.expressions.literal.StringLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.StructLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.TinyIntLiteral;
 import org.apache.doris.nereids.trees.expressions.literal.VarcharLiteral;
+import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
+import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionVisitor;
 import org.apache.doris.nereids.trees.plans.DistributeType;
 import org.apache.doris.nereids.trees.plans.JoinType;
 import org.apache.doris.nereids.trees.plans.LimitPhase;
@@ -456,6 +460,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalJoin;
 import org.apache.doris.nereids.trees.plans.logical.LogicalLimit;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
+import org.apache.doris.nereids.trees.plans.logical.LogicalQualify;
 import org.apache.doris.nereids.trees.plans.logical.LogicalRepeat;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSelectHint;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSink;
@@ -1377,6 +1382,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                     Optional.ofNullable(ctx.havingClause()),
                     Optional.ofNullable(ctx.qualifyClause()));
             selectPlan = withQualifyQuery(selectPlan, ctx);
+            selectPlan = withQueryOrganization(selectPlan, ctx.queryOrganization());
             if ((selectHintMap == null) || selectHintMap.isEmpty()) {
                 return selectPlan;
             }
@@ -1393,61 +1399,23 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     private LogicalPlan withQualifyQuery(LogicalPlan input, RegularQuerySpecificationContext ctx) {
         QualifyClauseContext qualifyClauseContext = ctx.qualifyClause();
         if (qualifyClauseContext != null) {
-            NamedExpression qualifyExpr = visitNamedExpression(qualifyClauseContext.namedExpression());
-            Expression filter;
+            Expression qualifyExpr = getExpression(qualifyClauseContext.booleanExpression());
             List<NamedExpression> excepts = new ArrayList<>();
-            if (qualifyExpr instanceof UnboundAlias) {
-                Expression cmp = qualifyExpr.child(0);
-                if (!(cmp instanceof ComparisonPredicate)) {
-                    throw new ParseException("only support compare expr");
+            qualifyExpr = qualifyExpr.accept(new DefaultExpressionRewriter<Void>() {
+                @Override
+                public Expression visitWindow(WindowExpression windowExpression, Void context) {
+                    UnboundSlot slot = new UnboundSlot("_QUALIFY_COLUMN");
+                    excepts.add(slot);
+                    return slot;
                 }
-                cmp = ExpressionRuleExecutor.normalize(cmp);
-                Expression left = cmp.child(0);
-                if (left instanceof WindowExpression) {
-                    WindowExpression windowExpression = (WindowExpression) left;
-                    String funName = windowExpression.getFunction().getExpressionName();
-                    switch (funName.toLowerCase()) {
-                        case "row_number":
-                        case "rank":
-                        case "dense_rank":
-                            break;
-                        default:
-                            throw new ParseException("not support window function : " + funName);
-                    }
-                    excepts.add(new UnboundSlot("_QUALIFY_COLUMN"));
-                }
-                if (left instanceof UnboundSlot) {
-                    left = new UnboundSlot(((UnboundSlot) left).getNameParts());
-                } else {
-                    left = new UnboundSlot("_QUALIFY_COLUMN");
-                }
-                Expression right = cmp.child(1);
-                if (!(right instanceof IntegerLikeLiteral)) {
-                    throw new ParseException("qualify expression only support constant compare");
-                }
-                if (cmp instanceof EqualTo) {
-                    filter = new EqualTo(left, right);
-                } else if (cmp instanceof GreaterThan) {
-                    filter = new GreaterThan(left, right);
-                } else if (cmp instanceof GreaterThanEqual) {
-                    filter = new GreaterThanEqual(left, right);
-                } else if (cmp instanceof LessThan) {
-                    filter = new LessThan(left, right);
-                } else if (cmp instanceof LessThanEqual) {
-                    filter = new LessThanEqual(left, right);
-                } else {
-                    throw new ParseException("not support compare type " + cmp.getClass().getSimpleName());
-                }
-            } else {
-                throw new ParseException("not support column type");
-            }
-            LogicalFilter<LogicalPlan> logicalFilter = new LogicalFilter<>(Sets.newHashSet(filter), input);
+
+            }, null);
+            LogicalQualify<LogicalPlan> logicalQualify = new LogicalQualify<>(Sets.newHashSet(qualifyExpr), input);
             List<NamedExpression> output =
                     Lists.newArrayList(new UnboundStar(ImmutableList.of(), excepts, ImmutableList.of()));
-            LogicalPlan plan = withQueryOrganization(logicalFilter, ctx.queryOrganization());
-            return new LogicalProject<>(output, plan);
+            return new LogicalProject<>(output, logicalQualify);
         }
-        return withQueryOrganization(input, ctx.queryOrganization());
+        return input;
     }
 
     @Override
@@ -3149,17 +3117,30 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
 
     private List<NamedExpression> withQualifySlot(List<NamedExpression> projects, Optional<QualifyClauseContext> ctx) {
         List<NamedExpression> result = Lists.newLinkedList(projects);
-        if (ctx.isPresent()) {
-            NamedExpression qualifySlot = visitNamedExpression(ctx.get().namedExpression());
-            if (qualifySlot instanceof UnboundAlias) {
-                Expression cmp = qualifySlot.child(0);
-                cmp = ExpressionRuleExecutor.normalize(cmp);
-                if (cmp.child(0) instanceof WindowExpression) {
-                    qualifySlot = new UnboundAlias(cmp.child(0), "_QUALIFY_COLUMN");
-                    result.add(qualifySlot);
-                }
+        Expression qualifyExpr = getExpression(ctx.get().booleanExpression());
+        Reference<WindowExpression> wer = new Reference<>();
+        qualifyExpr.accept(new DefaultExpressionVisitor<Void, Reference<WindowExpression>>() {
+            @Override
+            public Void visitWindow(WindowExpression windowExpression, Reference<WindowExpression> context) {
+                context.setRef(windowExpression);
+                return null;
             }
+
+        }, wer);
+        if (wer.getRef() != null) {
+            result.add(new UnboundAlias(wer.getRef(), "_QUALIFY_COLUMN"));
         }
+//        if (ctx.isPresent()) {
+//            Expression qualifySlot = getExpression(ctx.get().booleanExpression());
+//            if (qualifySlot instanceof UnboundAlias) {
+//                Expression cmp = qualifySlot.child(0);
+//                cmp = ExpressionRuleExecutor.normalize(cmp);
+//                if (cmp.child(0) instanceof WindowExpression) {
+//                    qualifySlot = new UnboundAlias(cmp.child(0), "_QUALIFY_COLUMN");
+//                    result.add(qualifySlot);
+//                }
+//            }
+//        }
         return ImmutableList.copyOf(result);
     }
 

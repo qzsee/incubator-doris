@@ -80,6 +80,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalJoin;
 import org.apache.doris.nereids.trees.plans.logical.LogicalOneRowRelation;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
+import org.apache.doris.nereids.trees.plans.logical.LogicalQualify;
 import org.apache.doris.nereids.trees.plans.logical.LogicalRepeat;
 import org.apache.doris.nereids.trees.plans.logical.LogicalResultSink;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSetOperation;
@@ -158,6 +159,9 @@ public class BindExpression implements AnalysisRuleFactory {
             ),
             RuleType.BINDING_FILTER_SLOT.build(
                 logicalFilter().thenApply(this::bindFilter)
+            ),
+            RuleType.BINDING_QUALIFY_SLOT.build(
+                logicalQualify().thenApply(this::bindQualify)
             ),
             RuleType.BINDING_USING_JOIN_SLOT.build(
                 usingJoin().thenApply(this::bindUsingJoin)
@@ -695,6 +699,21 @@ public class BindExpression implements AnalysisRuleFactory {
             boundConjuncts.add(boundConjunct);
         }
         return new LogicalFilter<>(boundConjuncts.build(), filter.child());
+    }
+
+    private Plan bindQualify(MatchingContext<LogicalQualify<Plan>> ctx) {
+        LogicalQualify<Plan> qualify = ctx.root;
+        CascadesContext cascadesContext = ctx.cascadesContext;
+        SimpleExprAnalyzer analyzer = buildSimpleExprAnalyzer(
+                qualify, cascadesContext, qualify.children(), true, true);
+        ImmutableSet.Builder<Expression> boundConjuncts = ImmutableSet.builderWithExpectedSize(
+                qualify.getConjuncts().size());
+        for (Expression conjunct : qualify.getConjuncts()) {
+            Expression boundConjunct = analyzer.analyze(conjunct);
+            boundConjunct = TypeCoercionUtils.castIfNotSameType(boundConjunct, BooleanType.INSTANCE);
+            boundConjuncts.add(boundConjunct);
+        }
+        return new LogicalQualify<>(boundConjuncts.build(), qualify.child());
     }
 
     private List<Slot> exceptStarSlots(Set<NamedExpression> boundExcepts, BoundStar boundStar) {
