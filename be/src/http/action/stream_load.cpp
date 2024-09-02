@@ -105,6 +105,7 @@ void StreamLoadAction::handle(HttpRequest* req) {
         return;
     }
 
+    LOG(INFO) << "[szq] stream load action handler. status : " << ctx->status;
     // status already set to fail
     if (ctx->status.ok()) {
         ctx->status = _handle(ctx);
@@ -124,7 +125,7 @@ void StreamLoadAction::handle(HttpRequest* req) {
             ctx->body_sink->cancel(ctx->status.to_string());
         }
     }
-
+    LOG(INFO) << "[szq] stream load action handler. status1 : " << ctx->status;
     auto str = ctx->to_json();
     // add new line at end
     str = str + '\n';
@@ -205,12 +206,14 @@ int StreamLoadAction::on_header(HttpRequest* req) {
         LOG(INFO) << "finished to handle HTTP header, " << ctx->brief();
     }
     if (!st.ok()) {
+        LOG(INFO) << "[szq] go here?";
         ctx->status = std::move(st);
         if (ctx->need_rollback) {
             _exec_env->stream_load_executor()->rollback_txn(ctx.get());
             ctx->need_rollback = false;
         }
         if (ctx->body_sink != nullptr) {
+            LOG(INFO) << "[szq] cancel after roll back";
             ctx->body_sink->cancel(ctx->status.to_string());
         }
         auto str = ctx->to_json();

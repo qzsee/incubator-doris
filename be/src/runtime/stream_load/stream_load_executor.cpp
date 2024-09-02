@@ -351,6 +351,7 @@ Status StreamLoadExecutor::commit_txn(StreamLoadContext* ctx) {
 }
 
 void StreamLoadExecutor::rollback_txn(StreamLoadContext* ctx) {
+    LOG(INFO) << "[szq] rollback_txn1";
     DorisMetrics::instance()->stream_load_txn_rollback_request_total->increment(1);
 
     TNetworkAddress master_addr = _exec_env->master_info()->network_address;
