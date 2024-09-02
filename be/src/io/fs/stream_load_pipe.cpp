@@ -40,9 +40,12 @@ StreamLoadPipe::StreamLoadPipe(size_t max_buffered_bytes, size_t min_chunk_size,
           _max_buffered_bytes(max_buffered_bytes),
           _min_chunk_size(min_chunk_size),
           _total_length(total_length),
-          _use_proto(use_proto) {}
+          _use_proto(use_proto) {
+    LOG(INFO) << "[szq] stream load pipe created";
+}
 
 StreamLoadPipe::~StreamLoadPipe() {
+    LOG(INFO) << "[szq] stream load pipe destoryed";
     while (!_buf_queue.empty()) {
         _buf_queue.pop_front();
     }
@@ -242,6 +245,7 @@ Status StreamLoadPipe::finish() {
 
 // called when producer/consumer failed
 void StreamLoadPipe::cancel(const std::string& reason) {
+    LOG(INFO) << "[szq] who cancel stream load pipe : " << reason;
     {
         std::lock_guard<std::mutex> l(_lock);
         _cancelled = true;

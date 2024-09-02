@@ -101,6 +101,7 @@ void StreamLoadAction::handle(HttpRequest* req) {
     std::shared_ptr<StreamLoadContext> ctx =
             std::static_pointer_cast<StreamLoadContext>(req->handler_ctx());
     if (ctx == nullptr) {
+        LOG(INFO) << "[szq] stream load handle ctx is null";
         return;
     }
 
@@ -154,8 +155,10 @@ Status StreamLoadAction::_handle(std::shared_ptr<StreamLoadContext> ctx) {
         RETURN_IF_ERROR(_exec_env->stream_load_executor()->execute_plan_fragment(ctx));
     }
 
+    LOG(INFO) << "[szq] stream load handler wating ........";
     // wait stream load finish
     RETURN_IF_ERROR(ctx->future.get());
+    LOG(INFO) << "[szq] stream load handler bigo ........";
 
     if (ctx->group_commit) {
         LOG(INFO) << "skip commit because this is group commit, pipe_id=" << ctx->id.to_string();
@@ -375,10 +378,12 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
 void StreamLoadAction::free_handler_ctx(std::shared_ptr<void> param) {
     std::shared_ptr<StreamLoadContext> ctx = std::static_pointer_cast<StreamLoadContext>(param);
     if (ctx == nullptr) {
+        LOG(INFO) << "[szq] ctx is null";
         return;
     }
     // sender is gone, make receiver know it
     if (ctx->body_sink != nullptr) {
+        LOG(INFO) << "[szq] sender is gone";
         ctx->body_sink->cancel("sender is gone");
     }
     // remove stream load context from stream load manager and the resource will be released

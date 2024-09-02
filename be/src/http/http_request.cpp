@@ -33,11 +33,15 @@ namespace doris {
 
 static std::string s_empty = "";
 
-HttpRequest::HttpRequest(evhttp_request* evhttp_request) : _ev_req(evhttp_request) {}
+HttpRequest::HttpRequest(evhttp_request* evhttp_request) : _ev_req(evhttp_request) {
+    LOG(INFO) << "[szq] http request created";
+}
 
 HttpRequest::~HttpRequest() {
+    LOG(INFO) << "[szq] http request destory";
     if (_handler_ctx != nullptr) {
         DCHECK(_handler != nullptr);
+        LOG(INFO) << "[szq] http request destory 1";
         _handler->free_handler_ctx(_handler_ctx);
     }
 }

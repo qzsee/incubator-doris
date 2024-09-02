@@ -100,6 +100,7 @@ Status StreamLoadExecutor::execute_plan_fragment(std::shared_ptr<StreamLoadConte
                          << ", err_msg=" << status->to_string() << ", " << ctx->brief();
             // cancel body_sink, make sender known it
             if (ctx->body_sink != nullptr) {
+                LOG(INFO) << "[szq] fragment instance execute occur error, cancel body sink";
                 ctx->body_sink->cancel(status->to_string());
             }
 
@@ -113,7 +114,9 @@ Status StreamLoadExecutor::execute_plan_fragment(std::shared_ptr<StreamLoadConte
             }
         }
         ctx->write_data_cost_nanos = MonotonicNanos() - ctx->start_write_data_nanos;
+        LOG(INFO) << "[szq] stream load fragment instance cb point 1";
         ctx->promise.set_value(*status);
+        LOG(INFO) << "[szq] stream load fragment instance cb point 2";
 
         if (!status->ok() && ctx->body_sink != nullptr) {
             // In some cases, the load execution is exited early.
@@ -122,6 +125,7 @@ Status StreamLoadExecutor::execute_plan_fragment(std::shared_ptr<StreamLoadConte
             // However, the http connection may still be sending data to stream_load_pipe
             // and waiting for it to be consumed.
             // Therefore, we need to actively cancel to end the pipe.
+            LOG(INFO) << "[szq] fragment instance execute occur error, cancel body sink again";
             ctx->body_sink->cancel(status->to_string());
         }
 
