@@ -107,5 +107,17 @@ public class QualifyQueryTest extends TestWithFeService {
         sql = "select year, country, profit from (select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1) a qualify row_number() over (order by profit) = 1";
         explainStr = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "explain " + sql);
         Assert.assertTrue(explainStr.contains("predicates: (_QUALIFY_COLUMN[#20] = 1)"));
+
+        sql = "select year, country, profit from (select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1) a qualify row_number() over (order by profit) = 1";
+        explainStr = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "explain " + sql);
+        Assert.assertTrue(explainStr.contains("predicates: (_QUALIFY_COLUMN[#20] = 1)"));
+
+        sql = "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify year > 1";
+        explainStr = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "explain " + sql);
+        Assert.assertTrue(explainStr.contains("errCode = 2, detailMessage = qualify only use for window expression"));
+
+        sql = "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify if(year > 2000, 1, 0) > 1";
+        explainStr = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, "explain " + sql);
+        Assert.assertTrue(explainStr.contains("errCode = 2, detailMessage = qualify only use for window expression"));
     }
 }

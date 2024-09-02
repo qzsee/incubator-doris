@@ -83,6 +83,16 @@ suite("test_qualify_query") {
     qt_select_21 "select * from sales where year >= 2000 qualify row_number() over (partition by year order by case when profit > 200 then 1 else 0 end desc, country) = 1 order by country"
 
     qt_select_22 "select distinct x.year, x.country, x.product from sales x left join sales y on x.year = y.year left join sales z on x.year = z.year where x.year >= 2000 qualify row_number() over (partition by x.year order by x.profit desc) = 1 order by year"
+
+    qt_select_23 "select year, country, profit, row_number() over (order by year) as rk1, row_number() over (order by country) as rk2 from (select * from sales) a where year >= 2000 qualify rk1 > 1 and rk2 > 2"
+
+    qt_select_24 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk + 1 > 1 * 100"
+
+    qt_select_25 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk in (1,2,3)"
+
+    qt_select_26 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk > (select 1)"
+
+    qt_select_27 "select year, country, profit, row_number() over (order by year) as rk from (select * from sales) a where year >= 2000 qualify rk < (select max(year) from sales)"
 }
 
 
