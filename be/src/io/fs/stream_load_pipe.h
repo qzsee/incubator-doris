@@ -60,6 +60,7 @@ public:
 
     // called when consumer finished
     Status close() override {
+        LOG(INFO) << "[szq] who close pipe";
         if (!(_finished || _cancelled)) {
             cancel("closed");
         }
