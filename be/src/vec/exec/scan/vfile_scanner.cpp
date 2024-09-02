@@ -1173,6 +1173,7 @@ Status VFileScanner::close(RuntimeState* state) {
     }
 
     if (_cur_reader) {
+        LOG(INFO) << "[szq] file scnner close";
         RETURN_IF_ERROR(_cur_reader->close());
     }
 

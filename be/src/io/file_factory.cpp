@@ -216,6 +216,7 @@ Status FileFactory::create_pipe_reader(const TUniqueId& load_id, io::FileReaderS
         RETURN_IF_ERROR(pipe->finish());
         *file_reader = std::move(pipe);
     } else {
+        LOG(INFO) << "[szq] assigment pipe to scanner";
         *file_reader = stream_load_ctx->pipe;
     }
 
