@@ -337,6 +337,7 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
     std::shared_ptr<StreamLoadContext> ctx =
             std::static_pointer_cast<StreamLoadContext>(req->handler_ctx());
     if (ctx == nullptr || !ctx->status.ok()) {
+        LOG(INFO) << "[szq] on chunk data called";
         return;
     }
 
@@ -347,6 +348,7 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
 
     int64_t start_read_data_time = MonotonicNanos();
     while (evbuffer_get_length(evbuf) > 0) {
+        LOG(INFO) << "[szq] on chunk append data";
         ByteBufferPtr bb;
         Status st = ByteBuffer::allocate(128 * 1024, &bb);
         if (!st.ok()) {
