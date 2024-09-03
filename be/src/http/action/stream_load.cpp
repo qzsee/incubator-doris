@@ -343,7 +343,8 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
         LOG(INFO) << "[szq] on chunk data called";
         if (config::enable_cancel_chunk) {
             evhttp_request_set_chunked_cb(req->get_evhttp_request(), nullptr);
-            evhttp_cancel_request(req->get_evhttp_request());
+            HttpChannel::send_reply(req, "req->handler_ctx()");
+            // evhttp_cancel_request(req->get_evhttp_request());
         }
         return;
     }
