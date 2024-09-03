@@ -112,4 +112,8 @@ bool HttpChannel::compress_content(const std::string& accept_encoding, const std
     return is_compressed;
 }
 
+void HttpChannel::cancel_req(HttpRequest* request) {
+    evhttp_cancel_request(request->get_evhttp_request());
+}
+
 } // namespace doris

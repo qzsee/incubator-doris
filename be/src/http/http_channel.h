@@ -49,6 +49,8 @@ public:
 
     static bool compress_content(const std::string& accept_encoding, const std::string& input,
                                  std::string* output);
+
+    static void cancel_req(HttpRequest* request);
 };
 
 } // namespace doris

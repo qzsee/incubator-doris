@@ -136,6 +136,9 @@ void StreamLoadAction::handle(HttpRequest* req) {
         _save_stream_load_record(ctx, str);
     }
 #endif
+    if (!ctx->status.ok()) {
+        HttpChannel::cancel_req(req);
+    }
     // update statistics
     streaming_load_requests_total->increment(1);
     streaming_load_duration_ms->increment(ctx->load_cost_millis);
