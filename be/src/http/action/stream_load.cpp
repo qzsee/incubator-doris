@@ -342,9 +342,11 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
     if (ctx == nullptr || !ctx->status.ok()) {
         LOG(INFO) << "[szq] on chunk data called";
         if (config::enable_cancel_chunk) {
-            evhttp_request_set_chunked_cb(req->get_evhttp_request(), nullptr);
-            HttpChannel::send_reply(req, "req->handler_ctx()");
-            // evhttp_cancel_request(req->get_evhttp_request());
+            std::shared_ptr<StreamLoadContext> ctx =
+            std::static_pointer_cast<StreamLoadContext>(req->handler_ctx());
+            auto str = ctx->to_json();
+            str = str + '\n';
+            HttpChannel::send_reply(req, str);
         }
         return;
     }

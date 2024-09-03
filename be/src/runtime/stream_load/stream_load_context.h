@@ -100,6 +100,7 @@ public:
 
     ~StreamLoadContext() {
         if (need_rollback) {
+            LOG(INFO) << "[szq] stream load ctx destoryed";
             _exec_env->stream_load_executor()->rollback_txn(this);
             need_rollback = false;
         }
