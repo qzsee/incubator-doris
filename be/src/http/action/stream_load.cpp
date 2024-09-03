@@ -136,9 +136,6 @@ void StreamLoadAction::handle(HttpRequest* req) {
         _save_stream_load_record(ctx, str);
     }
 #endif
-    if (!ctx->status.ok()) {
-        HttpChannel::cancel_req(req);
-    }
     // update statistics
     streaming_load_requests_total->increment(1);
     streaming_load_duration_ms->increment(ctx->load_cost_millis);
@@ -344,6 +341,7 @@ void StreamLoadAction::on_chunk_data(HttpRequest* req) {
             std::static_pointer_cast<StreamLoadContext>(req->handler_ctx());
     if (ctx == nullptr || !ctx->status.ok()) {
         LOG(INFO) << "[szq] on chunk data called";
+        evhttp_request_set_chunked_cb(req->get_evhttp_request(), nullptr);
         return;
     }
 
