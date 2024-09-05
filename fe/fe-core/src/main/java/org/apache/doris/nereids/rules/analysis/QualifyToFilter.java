@@ -33,6 +33,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
 import org.apache.doris.nereids.trees.plans.visitor.DefaultPlanVisitor;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -58,11 +59,13 @@ public class QualifyToFilter extends OneAnalysisRuleFactory {
                     }
                     AtomicBoolean hasWindow = new AtomicBoolean(false);
                     qualify.accept(new DefaultPlanVisitor<Void, Void>() {
-                        private void findWindow(NamedExpression namedExpression) {
-                            if (namedExpression instanceof Alias) {
-                                if (namedExpression.child(0) instanceof WindowExpression) {
-                                    if (windowSlotName.contains(namedExpression.getName())) {
-                                        hasWindow.set(true);
+                        private void findWindow(List<NamedExpression> namedExpressions) {
+                            for (NamedExpression namedExpression : namedExpressions) {
+                                if (namedExpression instanceof Alias) {
+                                    if (namedExpression.child(0) instanceof WindowExpression) {
+                                        if (windowSlotName.contains(namedExpression.getName())) {
+                                            hasWindow.set(true);
+                                        }
                                     }
                                 }
                             }
@@ -70,17 +73,13 @@ public class QualifyToFilter extends OneAnalysisRuleFactory {
 
                         @Override
                         public Void visitLogicalProject(LogicalProject<? extends Plan> project, Void context) {
-                            for (NamedExpression namedExpression : project.getProjects()) {
-                                findWindow(namedExpression);
-                            }
+                            findWindow(project.getProjects());
                             return visit(project, context);
                         }
 
                         @Override
                         public Void visitLogicalAggregate(LogicalAggregate<? extends Plan> aggregate, Void context) {
-                            for (NamedExpression namedExpression : aggregate.getOutputExpressions()) {
-                                findWindow(namedExpression);
-                            }
+                            findWindow(aggregate.getOutputExpressions());
                             return visit(aggregate, context);
                         }
                     }, null);

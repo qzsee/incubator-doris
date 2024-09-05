@@ -464,6 +464,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalSort;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSubQueryAlias;
 import org.apache.doris.nereids.trees.plans.logical.LogicalUnion;
 import org.apache.doris.nereids.trees.plans.logical.UsingJoin;
+import org.apache.doris.nereids.trees.plans.visitor.DefaultPlanRewriter;
 import org.apache.doris.nereids.types.AggStateType;
 import org.apache.doris.nereids.types.ArrayType;
 import org.apache.doris.nereids.types.BigIntType;
@@ -502,6 +503,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1396,20 +1398,47 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
         QualifyClauseContext qualifyClauseContext = ctx.qualifyClause();
         if (qualifyClauseContext != null) {
             Expression qualifyExpr = getExpression(qualifyClauseContext.booleanExpression());
+            List<NamedExpression> windows = new ArrayList<>();
             List<NamedExpression> excepts = new ArrayList<>();
-            qualifyExpr = qualifyExpr.accept(new DefaultExpressionRewriter<Void>() {
+            qualifyExpr = qualifyExpr.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
                 @Override
-                public Expression visitWindow(WindowExpression windowExpression, Void context) {
-                    UnboundSlot slot = new UnboundSlot("_QUALIFY_COLUMN");
-                    excepts.add(slot);
-                    return slot;
+                public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
+                    String aliasName = ConnectContext.get().getStatementContext().generateColumnName();
+                    UnboundAlias alias = new UnboundAlias(windowExpression, aliasName);
+                    windows.add(alias);
+                    UnboundSlot unboundSlot = new UnboundSlot(aliasName);
+                    excepts.add(unboundSlot);
+                    return unboundSlot;
+                }
+            }, windows);
+
+            LogicalPlan plan = (LogicalPlan) input.accept(new DefaultPlanRewriter<Void>() {
+                @Override
+                public Plan visitLogicalProject(LogicalProject<? extends Plan> project, Void context) {
+                    if (!windows.isEmpty()) {
+                        project = project.withProjects(ImmutableList.<NamedExpression>builder()
+                            .addAll(project.getProjects())
+                            .addAll(windows).build());
+                    }
+                    return project;
                 }
 
+                @Override
+                public Plan visitLogicalAggregate(LogicalAggregate<? extends Plan> aggregate, Void context) {
+                    if (!windows.isEmpty()) {
+                        aggregate = aggregate.withGroupByAndOutput(
+                            aggregate.getGroupByExpressions(),
+                            ImmutableList.<NamedExpression>builder()
+                            .addAll(aggregate.getOutputExpressions())
+                            .addAll(windows).build());
+                    }
+                    return aggregate;
+                }
             }, null);
-            LogicalQualify<LogicalPlan> logicalQualify = new LogicalQualify<>(Sets.newHashSet(qualifyExpr), input);
+            LogicalQualify<LogicalPlan> qualify = new LogicalQualify<>(Sets.newHashSet(qualifyExpr), plan);
             List<NamedExpression> output =
                     Lists.newArrayList(new UnboundStar(ImmutableList.of(), excepts, ImmutableList.of()));
-            return new LogicalProject<>(output, logicalQualify);
+            return new LogicalProject<>(output, qualify);
         }
         return input;
     }
@@ -3100,7 +3129,6 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                 // create a project node for pattern match of ProjectToGlobalAggregate rule
                 // then ProjectToGlobalAggregate rule can insert agg node as LogicalHaving node's child
                 List<NamedExpression> projects = getNamedExpressions(selectColumnCtx.namedExpressionSeq());
-                projects = withQualifySlot(projects, qualifyClauseContext);
                 LogicalPlan project = new LogicalProject<>(projects, isDistinct, aggregate);
                 return new LogicalHaving<>(ExpressionUtils.extractConjunctionToSet(
                         getExpression((havingClause.get().booleanExpression()))), project);
@@ -3325,7 +3353,6 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                 }
             } else {
                 List<NamedExpression> projects = getNamedExpressions(selectCtx.namedExpressionSeq());
-                projects = withQualifySlot(projects, qualifyClauseContext);
                 if (input instanceof UnboundOneRowRelation) {
                     if (projects.stream().anyMatch(project -> project instanceof UnboundStar)) {
                         throw new ParseException("SELECT * must have a FROM clause");
@@ -3370,7 +3397,6 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
         return input.optionalMap(aggCtx, () -> {
             GroupingElementContext groupingElementContext = aggCtx.get().groupingElement();
             List<NamedExpression> namedExpressions = getNamedExpressions(selectCtx.namedExpressionSeq());
-            namedExpressions = withQualifySlot(namedExpressions, qualifyClauseContext);
             if (groupingElementContext.GROUPING() != null) {
                 ImmutableList.Builder<List<Expression>> groupingSets = ImmutableList.builder();
                 for (GroupingSetContext groupingSetContext : groupingElementContext.groupingSet()) {
