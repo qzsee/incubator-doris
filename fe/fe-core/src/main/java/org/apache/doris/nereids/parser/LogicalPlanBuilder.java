@@ -1377,8 +1377,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                     selectCtx,
                     Optional.ofNullable(ctx.whereClause()),
                     Optional.ofNullable(ctx.aggClause()),
-                    Optional.ofNullable(ctx.havingClause()),
-                    Optional.ofNullable(ctx.qualifyClause()));
+                    Optional.ofNullable(ctx.havingClause()));
             selectPlan = withQualifyQuery(selectPlan, ctx);
             selectPlan = withQueryOrganization(selectPlan, ctx.queryOrganization());
             if ((selectHintMap == null) || selectHintMap.isEmpty()) {
@@ -3117,13 +3116,12 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
             SelectClauseContext selectClause,
             Optional<WhereClauseContext> whereClause,
             Optional<AggClauseContext> aggClause,
-            Optional<HavingClauseContext> havingClause,
-            Optional<QualifyClauseContext> qualifyClauseContext) {
+            Optional<HavingClauseContext> havingClause) {
         return ParserUtils.withOrigin(ctx, () -> {
             // from -> where -> group by -> having -> select
             LogicalPlan filter = withFilter(inputRelation, whereClause);
             SelectColumnClauseContext selectColumnCtx = selectClause.selectColumnClause();
-            LogicalPlan aggregate = withAggregate(filter, selectColumnCtx, aggClause, qualifyClauseContext);
+            LogicalPlan aggregate = withAggregate(filter, selectColumnCtx, aggClause);
             boolean isDistinct = (selectClause.DISTINCT() != null);
             if (!(aggregate instanceof Aggregate) && havingClause.isPresent()) {
                 // create a project node for pattern match of ProjectToGlobalAggregate rule
@@ -3134,29 +3132,9 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
                         getExpression((havingClause.get().booleanExpression()))), project);
             } else {
                 LogicalPlan having = withHaving(aggregate, havingClause);
-                return withProjection(having, selectColumnCtx, aggClause, isDistinct, qualifyClauseContext);
+                return withProjection(having, selectColumnCtx, aggClause, isDistinct);
             }
         });
-    }
-
-    private List<NamedExpression> withQualifySlot(List<NamedExpression> projects, Optional<QualifyClauseContext> ctx) {
-        List<NamedExpression> result = Lists.newLinkedList(projects);
-        if (ctx.isPresent()) {
-            Expression qualifyExpr = getExpression(ctx.get().booleanExpression());
-            Reference<WindowExpression> wer = new Reference<>();
-            qualifyExpr.accept(new DefaultExpressionVisitor<Void, Reference<WindowExpression>>() {
-                @Override
-                public Void visitWindow(WindowExpression windowExpression, Reference<WindowExpression> context) {
-                    context.setRef(windowExpression);
-                    return null;
-                }
-
-            }, wer);
-            if (wer.getRef() != null) {
-                result.add(new UnboundAlias(wer.getRef(), "_QUALIFY_COLUMN"));
-            }
-        }
-        return ImmutableList.copyOf(result);
     }
 
     /**
@@ -3341,8 +3319,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     }
 
     protected LogicalPlan withProjection(LogicalPlan input, SelectColumnClauseContext selectCtx,
-                                         Optional<AggClauseContext> aggCtx, boolean isDistinct,
-                                         Optional<QualifyClauseContext> qualifyClauseContext) {
+                                         Optional<AggClauseContext> aggCtx, boolean isDistinct) {
         return ParserUtils.withOrigin(selectCtx, () -> {
             if (aggCtx.isPresent()) {
                 if (isDistinct) {
@@ -3392,8 +3369,7 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     }
 
     private LogicalPlan withAggregate(LogicalPlan input, SelectColumnClauseContext selectCtx,
-                                      Optional<AggClauseContext> aggCtx,
-                                      Optional<QualifyClauseContext> qualifyClauseContext) {
+                                      Optional<AggClauseContext> aggCtx) {
         return input.optionalMap(aggCtx, () -> {
             GroupingElementContext groupingElementContext = aggCtx.get().groupingElement();
             List<NamedExpression> namedExpressions = getNamedExpressions(selectCtx.namedExpressionSeq());
