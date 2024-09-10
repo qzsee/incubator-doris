@@ -45,7 +45,6 @@ public class QualifyToFilter extends OneAnalysisRuleFactory {
     public Rule build() {
         return logicalQualify()
                 .then(qualify -> {
-
                     Set<String> windowSlotName = new HashSet<>();
                     for (Expression conjunct : qualify.getConjuncts()) {
                         conjunct.accept(new DefaultExpressionVisitor<Void, Set<String>>() {

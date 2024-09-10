@@ -89,6 +89,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalSort;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSubQueryAlias;
 import org.apache.doris.nereids.trees.plans.logical.LogicalTVFRelation;
 import org.apache.doris.nereids.trees.plans.logical.UsingJoin;
+import org.apache.doris.nereids.trees.plans.visitor.DefaultPlanVisitor;
 import org.apache.doris.nereids.trees.plans.visitor.InferPlanOutputAlias;
 import org.apache.doris.nereids.types.BooleanType;
 import org.apache.doris.nereids.types.StructField;
@@ -704,15 +705,84 @@ public class BindExpression implements AnalysisRuleFactory {
     private Plan bindQualify(MatchingContext<LogicalQualify<Plan>> ctx) {
         LogicalQualify<Plan> qualify = ctx.root;
         CascadesContext cascadesContext = ctx.cascadesContext;
-        SimpleExprAnalyzer analyzer = buildSimpleExprAnalyzer(
-                qualify, cascadesContext, qualify.children(), true, true);
         ImmutableSet.Builder<Expression> boundConjuncts = ImmutableSet.builderWithExpectedSize(
                 qualify.getConjuncts().size());
-        for (Expression conjunct : qualify.getConjuncts()) {
-            Expression boundConjunct = analyzer.analyze(conjunct);
-            boundConjunct = TypeCoercionUtils.castIfNotSameType(boundConjunct, BooleanType.INSTANCE);
-            boundConjuncts.add(boundConjunct);
-        }
+        qualify.accept(new DefaultPlanVisitor<Void, Void>() {
+            @Override
+            public Void visitLogicalProject(LogicalProject<? extends Plan> project, Void context) {
+                if (project.child() instanceof LogicalHaving) {
+                    return visit(project, context);
+                }
+                Supplier<Scope> defaultScope = Suppliers.memoize(() ->
+                        toScope(cascadesContext, PlanUtils.fastGetChildrenOutputs(project.children()))
+                );
+                Scope backupScope = toScope(cascadesContext, project.getOutput());
+
+                SimpleExprAnalyzer analyzer = buildCustomSlotBinderAnalyzer(
+                        qualify, cascadesContext, defaultScope.get(), true, true,
+                        (self, unboundSlot) -> {
+                            List<Slot> slots = self.bindSlotByScope(unboundSlot, defaultScope.get());
+                            if (!slots.isEmpty()) {
+                                return slots;
+                            }
+                            return self.bindSlotByScope(unboundSlot, backupScope);
+                        });
+
+                for (Expression conjunct : qualify.getConjuncts()) {
+                    conjunct = analyzer.analyze(conjunct);
+                    conjunct = TypeCoercionUtils.castIfNotSameType(conjunct, BooleanType.INSTANCE);
+                    boundConjuncts.add(conjunct);
+                }
+                return null;
+            }
+
+            @Override
+            public Void visitLogicalAggregate(LogicalAggregate<? extends Plan> aggregate, Void context) {
+
+                Scope aggOutputScope = toScope(cascadesContext, aggregate.getOutput());
+                Supplier<CustomSlotBinderAnalyzer> bindByGroupByThenAggOutput = Suppliers.memoize(() -> {
+                    List<Expression> groupByExprs = aggregate.getGroupByExpressions();
+                    ImmutableList.Builder<Slot> groupBySlots
+                            = ImmutableList.builderWithExpectedSize(groupByExprs.size());
+                    for (Expression groupBy : groupByExprs) {
+                        if (groupBy instanceof Slot) {
+                            groupBySlots.add((Slot) groupBy);
+                        }
+                    }
+                    Scope groupBySlotsScope = toScope(cascadesContext, groupBySlots.build());
+
+                    return (analyzer, unboundSlot) -> {
+                        List<Slot> boundInGroupBy = analyzer.bindSlotByScope(unboundSlot, groupBySlotsScope);
+                        if (!boundInGroupBy.isEmpty()) {
+                            return ImmutableList.of(boundInGroupBy.get(0));
+                        }
+
+                        List<Slot> boundInAggOutput = analyzer.bindSlotByScope(unboundSlot, aggOutputScope);
+                        if (!boundInAggOutput.isEmpty()) {
+                            return ImmutableList.of(boundInAggOutput.get(0));
+                        }
+
+                        return ImmutableList.of();
+                    };
+                });
+
+                ExpressionAnalyzer qualifyAnalyzer = new ExpressionAnalyzer(qualify, aggOutputScope, cascadesContext,
+                        true, true) {
+                    @Override
+                    protected List<? extends Expression> bindSlotByThisScope(UnboundSlot unboundSlot) {
+                        return bindByGroupByThenAggOutput.get().bindSlot(this, unboundSlot);
+                    }
+                };
+
+                ExpressionRewriteContext rewriteContext = new ExpressionRewriteContext(cascadesContext);
+                for (Expression expression : qualify.getConjuncts()) {
+                    Expression boundConjunct = qualifyAnalyzer.analyze(expression, rewriteContext);
+                    boundConjunct = TypeCoercionUtils.castIfNotSameType(boundConjunct, BooleanType.INSTANCE);
+                    boundConjuncts.add(boundConjunct);
+                }
+                return null;
+            }
+        }, null);
         return new LogicalQualify<>(boundConjuncts.build(), qualify.child());
     }
 

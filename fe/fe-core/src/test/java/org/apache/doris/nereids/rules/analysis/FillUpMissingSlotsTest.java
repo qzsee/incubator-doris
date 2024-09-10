@@ -34,6 +34,7 @@ import org.apache.doris.nereids.trees.expressions.functions.agg.Sum;
 import org.apache.doris.nereids.trees.expressions.functions.scalar.Abs;
 import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.nereids.trees.expressions.literal.TinyIntLiteral;
+import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.types.BigIntType;
 import org.apache.doris.nereids.types.IntegerType;
 import org.apache.doris.nereids.types.TinyIntType;
@@ -72,7 +73,17 @@ public class FillUpMissingSlotsTest extends AnalyzeCheckTestBase implements Memo
                         + "DISTRIBUTED BY HASH (pk)\n"
                         + "PROPERTIES(\n"
                         + "    'replication_num' = '1'\n"
-                        + ");"
+                        + ");",
+                "CREATE TABLE sales (\n" +
+                        "   year INT,\n" +
+                        "   country STRING,\n" +
+                        "   product STRING,\n" +
+                        "   profit INT\n" +
+                        ") \n" +
+                        "DISTRIBUTED BY HASH(`year`)\n" +
+                        "PROPERTIES (\n" +
+                        "\"replication_num\" = \"1\"\n" +
+                        ");"
         );
     }
 
