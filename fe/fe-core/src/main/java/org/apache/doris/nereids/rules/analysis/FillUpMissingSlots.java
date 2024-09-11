@@ -281,6 +281,7 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
             ),
             RuleType.FILL_UP_HAVING_AGGREGATE.build(
                 logicalQualify(logicalHaving(aggregate())).then(qualify -> {
+                    LogicalHaving<Aggregate<Plan>> having = qualify.child();
                     Aggregate<Plan> agg = qualify.child().child();
                     Resolver resolver = new Resolver(agg);
                     qualify.getConjuncts().forEach(resolver::resolve);
@@ -291,7 +292,7 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                         if (notChanged && a.equals(agg)) {
                             return null;
                         }
-                        return notChanged ? qualify.withChildren(a) : new LogicalQualify<>(newConjuncts, a);
+                        return notChanged ? qualify.withChildren(having.withChildren(a)) : new LogicalQualify<>(newConjuncts, having.withChildren(a));
                     });
                 })
             )
