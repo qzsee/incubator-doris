@@ -29,6 +29,7 @@ import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.SlotReference;
 import org.apache.doris.nereids.trees.expressions.WindowExpression;
 import org.apache.doris.nereids.trees.expressions.functions.agg.AggregateFunction;
+import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.algebra.Aggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
@@ -46,6 +47,7 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -231,21 +233,32 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
             RuleType.FILL_UP_HAVING_AGGREGATE.build(
                     logicalQualify(logicalProject()).whenNot(qualify -> qualify.child().isDistinct()).then(qualify -> {
                         LogicalProject project = qualify.child();
-                        LogicalAggregate aggregate = new LogicalAggregate<>(ImmutableList.of(),
-                                project.getProjects(), project);
-                        Resolver resolver = new Resolver(aggregate);
-                        qualify.getConjuncts().forEach(resolver::resolve);
-                        if (resolver.getNewOutputSlots().isEmpty()) {
+                        Set<Slot> projectOutputSet = project.getOutputSet();
+                        List<NamedExpression> newOutputSlots = Lists.newArrayList();
+                        Set<Expression> newConjuncts = new HashSet<>();
+                        for (Expression conjunct : qualify.getConjuncts()) {
+                            conjunct = conjunct.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
+                                @Override
+                                public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
+                                    Alias alias = new Alias(windowExpression);
+                                    context.add(alias);
+                                    return alias.toSlot();
+                                }
+                            }, newOutputSlots);
+                            newConjuncts.add(conjunct);
+                        }
+                        Set<Slot> notExistedInProject = qualify.getExpressions().stream()
+                                .map(Expression::getInputSlots)
+                                .flatMap(Set::stream)
+                                .filter(s -> !projectOutputSet.contains(s))
+                                .collect(Collectors.toSet());
+                        if (notExistedInProject.isEmpty()) {
                             return null;
                         }
-                        Set<Expression> newConjuncts = ExpressionUtils.replace(
-                                qualify.getConjuncts(), resolver.getSubstitution());
-                        List<NamedExpression> newOutputExpressions = new ArrayList<>();
-                        newOutputExpressions.addAll(project.getProjects());
-                        newOutputExpressions.addAll(resolver.getNewOutputSlots());
-                        List projects = project.getProjects();
-                        project = project.withProjects(newOutputExpressions);
-                        return new LogicalProject(projects, new LogicalQualify(newConjuncts, project));
+                        newOutputSlots.addAll(notExistedInProject);
+                        List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
+                                .addAll(project.getProjects()).addAll(newOutputSlots).build();
+                        return new LogicalProject(project.getProjects(), new LogicalQualify<>(newConjuncts, project.withProjects(projects)));
                     }
             ))
         );

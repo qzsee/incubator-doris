@@ -611,7 +611,8 @@ public class FillUpMissingSlotsTest extends AnalyzeCheckTestBase implements Memo
 
     @Test
     void testQualify() {
-        String sql = "select year, country, profit from sales where year >= 2000 qualify row_number() over (order by year) > 1";
+//        String sql = "select year, country, profit from sales where year >= 2000 qualify row_number() over (order by year) > 1";
+        String sql = "select year, country, profit from sales where year >= 2000 qualify row_number() over (order by year) > product";
         String string = PlanChecker.from(connectContext).analyze(sql).getPlan().treeString();
         System.out.println(string);
     }
