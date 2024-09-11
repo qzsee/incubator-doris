@@ -232,7 +232,7 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
             ),
             RuleType.FILL_UP_HAVING_AGGREGATE.build(
                     logicalQualify(logicalProject()).whenNot(qualify -> qualify.child().isDistinct()).then(qualify -> {
-                        LogicalProject project = qualify.child();
+                        LogicalProject<Plan> project = qualify.child();
                         Set<Slot> projectOutputSet = project.getOutputSet();
                         List<NamedExpression> newOutputSlots = Lists.newArrayList();
                         Set<Expression> newConjuncts = new HashSet<>();
@@ -252,19 +252,36 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                                 .flatMap(Set::stream)
                                 .filter(s -> !projectOutputSet.contains(s))
                                 .collect(Collectors.toSet());
-                        if (notExistedInProject.isEmpty()) {
+
+                        newOutputSlots.addAll(notExistedInProject);
+                        if (newOutputSlots.isEmpty()) {
                             return null;
                         }
-                        newOutputSlots.addAll(notExistedInProject);
                         List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
                                 .addAll(project.getProjects()).addAll(newOutputSlots).build();
-                        return new LogicalProject(ImmutableList.copyOf(project.getOutput()),
+                        return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
                                 new LogicalQualify<>(newConjuncts, project.withProjects(projects)));
                     }
             )),
             RuleType.FILL_UP_HAVING_AGGREGATE.build(
                 logicalQualify(aggregate()).then(qualify -> {
                     Aggregate<Plan> agg = qualify.child();
+                    Resolver resolver = new Resolver(agg);
+                    qualify.getConjuncts().forEach(resolver::resolve);
+                    return createPlan(resolver, agg, (r, a) -> {
+                        Set<Expression> newConjuncts = ExpressionUtils.replace(
+                                qualify.getConjuncts(), r.getSubstitution());
+                        boolean notChanged = newConjuncts.equals(qualify.getConjuncts());
+                        if (notChanged && a.equals(agg)) {
+                            return null;
+                        }
+                        return notChanged ? qualify.withChildren(a) : new LogicalQualify<>(newConjuncts, a);
+                    });
+                })
+            ),
+            RuleType.FILL_UP_HAVING_AGGREGATE.build(
+                logicalQualify(logicalHaving(aggregate())).then(qualify -> {
+                    Aggregate<Plan> agg = qualify.child().child();
                     Resolver resolver = new Resolver(agg);
                     qualify.getConjuncts().forEach(resolver::resolve);
                     return createPlan(resolver, agg, (r, a) -> {
