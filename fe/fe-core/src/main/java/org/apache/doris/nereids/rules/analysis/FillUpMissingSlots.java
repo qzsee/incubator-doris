@@ -258,9 +258,26 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                         newOutputSlots.addAll(notExistedInProject);
                         List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
                                 .addAll(project.getProjects()).addAll(newOutputSlots).build();
-                        return new LogicalProject(project.getProjects(), new LogicalQualify<>(newConjuncts, project.withProjects(projects)));
+                        return new LogicalProject(ImmutableList.copyOf(project.getOutput()),
+                                new LogicalQualify<>(newConjuncts, project.withProjects(projects)));
                     }
-            ))
+            )),
+            RuleType.FILL_UP_HAVING_AGGREGATE.build(
+                logicalQualify(aggregate()).then(qualify -> {
+                    Aggregate<Plan> agg = qualify.child();
+                    Resolver resolver = new Resolver(agg);
+                    qualify.getConjuncts().forEach(resolver::resolve);
+                    return createPlan(resolver, agg, (r, a) -> {
+                        Set<Expression> newConjuncts = ExpressionUtils.replace(
+                                qualify.getConjuncts(), r.getSubstitution());
+                        boolean notChanged = newConjuncts.equals(qualify.getConjuncts());
+                        if (notChanged && a.equals(agg)) {
+                            return null;
+                        }
+                        return notChanged ? qualify.withChildren(a) : new LogicalQualify<>(newConjuncts, a);
+                    });
+                })
+            )
         );
     }
 
