@@ -27,13 +27,16 @@ import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.NamedExpression;
 import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.SlotReference;
+import org.apache.doris.nereids.trees.expressions.WindowExpression;
 import org.apache.doris.nereids.trees.expressions.functions.agg.AggregateFunction;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.algebra.Aggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalHaving;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
+import org.apache.doris.nereids.trees.plans.logical.LogicalQualify;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSort;
+import org.apache.doris.nereids.trees.plans.visitor.DefaultPlanRewriter;
 import org.apache.doris.nereids.util.ExpressionUtils;
 
 import com.google.common.collect.ImmutableList;
@@ -42,6 +45,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -223,7 +227,27 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                                     having.withChildren(new LogicalProject<>(projects, project.child())));
                         }
                     })
-            )
+            ),
+            RuleType.FILL_UP_HAVING_AGGREGATE.build(
+                    logicalQualify(logicalProject()).whenNot(qualify -> qualify.child().isDistinct()).then(qualify -> {
+                        LogicalProject project = qualify.child();
+                        LogicalAggregate aggregate = new LogicalAggregate<>(ImmutableList.of(),
+                                project.getProjects(), project);
+                        Resolver resolver = new Resolver(aggregate);
+                        qualify.getConjuncts().forEach(resolver::resolve);
+                        if (resolver.getNewOutputSlots().isEmpty()) {
+                            return null;
+                        }
+                        Set<Expression> newConjuncts = ExpressionUtils.replace(
+                                qualify.getConjuncts(), resolver.getSubstitution());
+                        List<NamedExpression> newOutputExpressions = new ArrayList<>();
+                        newOutputExpressions.addAll(project.getProjects());
+                        newOutputExpressions.addAll(resolver.getNewOutputSlots());
+                        List projects = project.getProjects();
+                        project = project.withProjects(newOutputExpressions);
+                        return new LogicalProject(projects, new LogicalQualify(newConjuncts, project));
+                    }
+            ))
         );
     }
 
@@ -282,6 +306,8 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                         throw new AnalysisException("Aggregate functions in having clause can't be nested: "
                                 + expression.toSql() + ".");
                     }
+                    generateAliasForNewOutputSlots(expression);
+                } else if (expression instanceof WindowExpression) {
                     generateAliasForNewOutputSlots(expression);
                 } else {
                     // Try to resolve the children.

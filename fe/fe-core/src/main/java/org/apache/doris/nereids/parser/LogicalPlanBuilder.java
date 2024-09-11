@@ -1397,46 +1397,46 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
         QualifyClauseContext qualifyClauseContext = ctx.qualifyClause();
         if (qualifyClauseContext != null) {
             Expression qualifyExpr = getExpression(qualifyClauseContext.booleanExpression());
-            List<NamedExpression> windows = new ArrayList<>();
-            List<NamedExpression> excepts = new ArrayList<>();
-            qualifyExpr = qualifyExpr.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
-                @Override
-                public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
-                    String aliasName = ConnectContext.get().getStatementContext().generateColumnName();
-                    UnboundAlias alias = new UnboundAlias(windowExpression, aliasName);
-                    windows.add(alias);
-                    UnboundSlot unboundSlot = new UnboundSlot(aliasName);
-                    excepts.add(unboundSlot);
-                    return unboundSlot;
-                }
-            }, windows);
-
-            LogicalPlan plan = (LogicalPlan) input.accept(new DefaultPlanRewriter<Void>() {
-                @Override
-                public Plan visitLogicalProject(LogicalProject<? extends Plan> project, Void context) {
-                    if (!windows.isEmpty()) {
-                        project = project.withProjects(ImmutableList.<NamedExpression>builder()
-                            .addAll(project.getProjects())
-                            .addAll(windows).build());
-                    }
-                    return project;
-                }
-
-                @Override
-                public Plan visitLogicalAggregate(LogicalAggregate<? extends Plan> aggregate, Void context) {
-                    if (!windows.isEmpty()) {
-                        aggregate = aggregate.withGroupByAndOutput(
-                            aggregate.getGroupByExpressions(),
-                            ImmutableList.<NamedExpression>builder()
-                            .addAll(aggregate.getOutputExpressions())
-                            .addAll(windows).build());
-                    }
-                    return aggregate;
-                }
-            }, null);
-            LogicalQualify<LogicalPlan> qualify = new LogicalQualify<>(Sets.newHashSet(qualifyExpr), plan);
+//            List<NamedExpression> windows = new ArrayList<>();
+//            List<NamedExpression> excepts = new ArrayList<>();
+//            qualifyExpr = qualifyExpr.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
+//                @Override
+//                public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
+//                    String aliasName = ConnectContext.get().getStatementContext().generateColumnName();
+//                    UnboundAlias alias = new UnboundAlias(windowExpression, aliasName);
+//                    windows.add(alias);
+//                    UnboundSlot unboundSlot = new UnboundSlot(aliasName);
+//                    excepts.add(unboundSlot);
+//                    return unboundSlot;
+//                }
+//            }, windows);
+//
+//            LogicalPlan plan = (LogicalPlan) input.accept(new DefaultPlanRewriter<Void>() {
+//                @Override
+//                public Plan visitLogicalProject(LogicalProject<? extends Plan> project, Void context) {
+//                    if (!windows.isEmpty()) {
+//                        project = project.withProjects(ImmutableList.<NamedExpression>builder()
+//                            .addAll(project.getProjects())
+//                            .addAll(windows).build());
+//                    }
+//                    return project;
+//                }
+//
+//                @Override
+//                public Plan visitLogicalAggregate(LogicalAggregate<? extends Plan> aggregate, Void context) {
+//                    if (!windows.isEmpty()) {
+//                        aggregate = aggregate.withGroupByAndOutput(
+//                            aggregate.getGroupByExpressions(),
+//                            ImmutableList.<NamedExpression>builder()
+//                            .addAll(aggregate.getOutputExpressions())
+//                            .addAll(windows).build());
+//                    }
+//                    return aggregate;
+//                }
+//            }, null);
+            LogicalQualify<LogicalPlan> qualify = new LogicalQualify<>(Sets.newHashSet(qualifyExpr), input);
             List<NamedExpression> output =
-                    Lists.newArrayList(new UnboundStar(ImmutableList.of(), excepts, ImmutableList.of()));
+                    Lists.newArrayList(new UnboundStar(ImmutableList.of(), ImmutableList.of(), ImmutableList.of()));
             return new LogicalProject<>(output, qualify);
         }
         return input;

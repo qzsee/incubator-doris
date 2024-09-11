@@ -608,4 +608,11 @@ public class FillUpMissingSlotsTest extends AnalyzeCheckTestBase implements Memo
         PlanChecker.from(connectContext).analyze(sql)
                 .applyBottomUp(new CheckAfterRewrite());
     }
+
+    @Test
+    void testQualify() {
+        String sql = "select year, country, profit from sales where year >= 2000 qualify row_number() over (order by year) > 1";
+        String string = PlanChecker.from(connectContext).analyze(sql).getPlan().treeString();
+        System.out.println(string);
+    }
 }

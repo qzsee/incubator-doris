@@ -76,6 +76,10 @@ public class LogicalQualify<CHILD_TYPE extends Plan> extends LogicalUnary<CHILD_
         return new LogicalQualify<>(conjuncts, groupExpression, logicalProperties, children.get(0));
     }
 
+    public LogicalQualify<Plan> withConjuncts(Set<Expression> conjuncts) {
+        return new LogicalQualify<>(conjuncts, Optional.empty(), Optional.of(getLogicalProperties()), child());
+    }
+
     @Override
     public String toString() {
         return Utils.toSqlString("LogicalQualify[" + id.asInt() + "]",
