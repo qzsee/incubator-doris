@@ -295,6 +295,40 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                         return notChanged ? qualify.withChildren(having.withChildren(a)) : new LogicalQualify<>(newConjuncts, having.withChildren(a));
                     });
                 })
+            ),
+            RuleType.FILL_UP_HAVING_AGGREGATE.build(
+                logicalQualify(logicalHaving(logicalProject())).then(qualify -> {
+                    LogicalHaving<LogicalProject<Plan>> having = qualify.child();
+                    LogicalProject<Plan> project = qualify.child().child();
+                    Set<Slot> projectOutputSet = project.getOutputSet();
+                    List<NamedExpression> newOutputSlots = Lists.newArrayList();
+                    Set<Expression> newConjuncts = new HashSet<>();
+                    for (Expression conjunct : qualify.getConjuncts()) {
+                        conjunct = conjunct.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
+                            @Override
+                            public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
+                                Alias alias = new Alias(windowExpression);
+                                context.add(alias);
+                                return alias.toSlot();
+                            }
+                        }, newOutputSlots);
+                        newConjuncts.add(conjunct);
+                    }
+                    Set<Slot> notExistedInProject = qualify.getExpressions().stream()
+                            .map(Expression::getInputSlots)
+                            .flatMap(Set::stream)
+                            .filter(s -> !projectOutputSet.contains(s))
+                            .collect(Collectors.toSet());
+
+                    newOutputSlots.addAll(notExistedInProject);
+                    if (newOutputSlots.isEmpty()) {
+                        return null;
+                    }
+                    List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
+                            .addAll(project.getProjects()).addAll(newOutputSlots).build();
+                    return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
+                            new LogicalQualify<>(newConjuncts, having.withChildren(project.withProjects(projects))));
+                })
             )
         );
     }
