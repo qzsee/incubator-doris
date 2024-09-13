@@ -620,7 +620,8 @@ public class FillUpMissingSlotsTest extends AnalyzeCheckTestBase implements Memo
 //        String sql = "select distinct x.year, x.country, x.product from sales x left join sales y on x.year = y.year left join sales z on x.year = z.year where x.year >= 2000 qualify row_number() over (partition by x.year order by x.profit desc) = 1 order by year";
 //        String sql = "select max(year) over() + 1, sum(profit) as sb from sales group by year having sb > 10 qualify max(year) over() > 5";
 //        String sql = "select year,country, row_number() over (order by year) + 1 from sales qualify row_number() over (order by year) > 5";
-        String sql = "select distinct year,country from sales having year > 100 qualify row_number() over (order by year) > 1";
+//        String sql = "select distinct year,country from sales having year > 100 qualify row_number() over (order by year) > 1";
+        String sql = "select distinct year + 1, country, row_number() over (order by year + 1) as rk from sales qualify rk > 1";
         String string = PlanChecker.from(connectContext).analyze(sql).rewrite().getPlan().treeString();
         System.out.println(string);
     }

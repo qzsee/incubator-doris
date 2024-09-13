@@ -73,9 +73,6 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                                 .collect(Collectors.toSet());
 
                         newOutputSlots.addAll(notExistedInProject);
-                        if (newOutputSlots.isEmpty()) {
-                            return null;
-                        }
                         List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
                                 .addAll(project.getProjects()).addAll(newOutputSlots).build();
                         LogicalQualify<LogicalProject<Plan>> logicalQualify =
