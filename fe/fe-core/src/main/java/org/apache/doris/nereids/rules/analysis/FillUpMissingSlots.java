@@ -29,15 +29,12 @@ import org.apache.doris.nereids.trees.expressions.Slot;
 import org.apache.doris.nereids.trees.expressions.SlotReference;
 import org.apache.doris.nereids.trees.expressions.WindowExpression;
 import org.apache.doris.nereids.trees.expressions.functions.agg.AggregateFunction;
-import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.algebra.Aggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalHaving;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
-import org.apache.doris.nereids.trees.plans.logical.LogicalQualify;
 import org.apache.doris.nereids.trees.plans.logical.LogicalSort;
-import org.apache.doris.nereids.trees.plans.visitor.DefaultPlanRewriter;
 import org.apache.doris.nereids.util.ExpressionUtils;
 
 import com.google.common.collect.ImmutableList;
@@ -46,8 +43,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -229,107 +224,7 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
                                     having.withChildren(new LogicalProject<>(projects, project.child())));
                         }
                     })
-            ),
-            RuleType.FILL_UP_HAVING_AGGREGATE.build(
-                    logicalQualify(logicalProject()).whenNot(qualify -> qualify.child().isDistinct()).then(qualify -> {
-                        LogicalProject<Plan> project = qualify.child();
-                        Set<Slot> projectOutputSet = project.getOutputSet();
-                        List<NamedExpression> newOutputSlots = Lists.newArrayList();
-                        Set<Expression> newConjuncts = new HashSet<>();
-                        for (Expression conjunct : qualify.getConjuncts()) {
-                            conjunct = conjunct.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
-                                @Override
-                                public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
-                                    Alias alias = new Alias(windowExpression);
-                                    context.add(alias);
-                                    return alias.toSlot();
-                                }
-                            }, newOutputSlots);
-                            newConjuncts.add(conjunct);
-                        }
-                        Set<Slot> notExistedInProject = qualify.getExpressions().stream()
-                                .map(Expression::getInputSlots)
-                                .flatMap(Set::stream)
-                                .filter(s -> !projectOutputSet.contains(s))
-                                .collect(Collectors.toSet());
-
-                        newOutputSlots.addAll(notExistedInProject);
-                        if (newOutputSlots.isEmpty()) {
-                            return null;
-                        }
-                        List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
-                                .addAll(project.getProjects()).addAll(newOutputSlots).build();
-                        return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
-                                new LogicalQualify<>(newConjuncts, project.withProjects(projects)));
-                    }
-            )),
-            RuleType.FILL_UP_HAVING_AGGREGATE.build(
-                logicalQualify(aggregate()).then(qualify -> {
-                    Aggregate<Plan> agg = qualify.child();
-                    Resolver resolver = new Resolver(agg);
-                    qualify.getConjuncts().forEach(resolver::resolve);
-                    return createPlan(resolver, agg, (r, a) -> {
-                        Set<Expression> newConjuncts = ExpressionUtils.replace(
-                                qualify.getConjuncts(), r.getSubstitution());
-                        boolean notChanged = newConjuncts.equals(qualify.getConjuncts());
-                        if (notChanged && a.equals(agg)) {
-                            return null;
-                        }
-                        return notChanged ? qualify.withChildren(a) : new LogicalQualify<>(newConjuncts, a);
-                    });
-                })
-            ),
-            RuleType.FILL_UP_HAVING_AGGREGATE.build(
-                logicalQualify(logicalHaving(aggregate())).then(qualify -> {
-                    LogicalHaving<Aggregate<Plan>> having = qualify.child();
-                    Aggregate<Plan> agg = qualify.child().child();
-                    Resolver resolver = new Resolver(agg);
-                    qualify.getConjuncts().forEach(resolver::resolve);
-                    return createPlan(resolver, agg, (r, a) -> {
-                        Set<Expression> newConjuncts = ExpressionUtils.replace(
-                                qualify.getConjuncts(), r.getSubstitution());
-                        boolean notChanged = newConjuncts.equals(qualify.getConjuncts());
-                        if (notChanged && a.equals(agg)) {
-                            return null;
-                        }
-                        return notChanged ? qualify.withChildren(having.withChildren(a)) : new LogicalQualify<>(newConjuncts, having.withChildren(a));
-                    });
-                })
-            ),
-            RuleType.FILL_UP_HAVING_AGGREGATE.build(
-                logicalQualify(logicalHaving(logicalProject())).then(qualify -> {
-                    LogicalHaving<LogicalProject<Plan>> having = qualify.child();
-                    LogicalProject<Plan> project = qualify.child().child();
-                    Set<Slot> projectOutputSet = project.getOutputSet();
-                    List<NamedExpression> newOutputSlots = Lists.newArrayList();
-                    Set<Expression> newConjuncts = new HashSet<>();
-                    for (Expression conjunct : qualify.getConjuncts()) {
-                        conjunct = conjunct.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
-                            @Override
-                            public Expression visitWindow(WindowExpression windowExpression, List<NamedExpression> context) {
-                                Alias alias = new Alias(windowExpression);
-                                context.add(alias);
-                                return alias.toSlot();
-                            }
-                        }, newOutputSlots);
-                        newConjuncts.add(conjunct);
-                    }
-                    Set<Slot> notExistedInProject = qualify.getExpressions().stream()
-                            .map(Expression::getInputSlots)
-                            .flatMap(Set::stream)
-                            .filter(s -> !projectOutputSet.contains(s))
-                            .collect(Collectors.toSet());
-
-                    newOutputSlots.addAll(notExistedInProject);
-                    if (newOutputSlots.isEmpty()) {
-                        return null;
-                    }
-                    List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
-                            .addAll(project.getProjects()).addAll(newOutputSlots).build();
-                    return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
-                            new LogicalQualify<>(newConjuncts, having.withChildren(project.withProjects(projects))));
-                })
-            )
+             )
         );
     }
 
@@ -462,7 +357,7 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
         Plan apply(Resolver resolver, Aggregate<?> aggregate);
     }
 
-    private Plan createPlan(Resolver resolver, Aggregate<? extends Plan> aggregate, PlanGenerator planGenerator) {
+    protected Plan createPlan(Resolver resolver, Aggregate<? extends Plan> aggregate, PlanGenerator planGenerator) {
         Aggregate<? extends Plan> newAggregate;
         if (resolver.getNewOutputSlots().isEmpty()) {
             newAggregate = aggregate;
