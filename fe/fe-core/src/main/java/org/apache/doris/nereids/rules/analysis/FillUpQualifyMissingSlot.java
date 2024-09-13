@@ -184,8 +184,8 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                     if (project.isDistinct()) {
                         LogicalQualify<LogicalProject<Plan>> logicalQualify =
                                 new LogicalQualify<>(newConjuncts, new LogicalProject<>(projects, project.child()));
-                        return project.withProjects(ImmutableList.copyOf(project.getOutput()))
-                            .withChildren(logicalQualify);
+                        return having.withChildren(project.withProjects(ImmutableList.copyOf(project.getOutput()))
+                            .withChildren(logicalQualify));
                     }
                     return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
                             new LogicalQualify<>(newConjuncts, having.withChildren(project.withProjects(projects))));
