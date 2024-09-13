@@ -73,6 +73,9 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                                 .collect(Collectors.toSet());
 
                         newOutputSlots.addAll(notExistedInProject);
+                        if (newOutputSlots.isEmpty()) {
+                            return null;
+                        }
                         List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
                                 .addAll(project.getProjects()).addAll(newOutputSlots).build();
                         LogicalQualify<LogicalProject<Plan>> logicalQualify =
@@ -178,6 +181,12 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                     }
                     List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
                             .addAll(project.getProjects()).addAll(newOutputSlots).build();
+                    if (project.isDistinct()) {
+                        LogicalQualify<LogicalProject<Plan>> logicalQualify =
+                                new LogicalQualify<>(newConjuncts, new LogicalProject<>(projects, project.child()));
+                        return project.withProjects(ImmutableList.copyOf(project.getOutput()))
+                            .withChildren(logicalQualify);
+                    }
                     return new LogicalProject<>(ImmutableList.copyOf(project.getOutput()),
                             new LogicalQualify<>(newConjuncts, having.withChildren(project.withProjects(projects))));
                 })
