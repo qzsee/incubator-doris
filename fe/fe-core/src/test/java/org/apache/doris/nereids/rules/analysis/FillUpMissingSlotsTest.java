@@ -618,13 +618,15 @@ public class FillUpMissingSlotsTest extends AnalyzeCheckTestBase implements Memo
 //        String sql = "select year + 1, country, sum(profit) as total from sales where year >= 2000 group by year,country having sum(profit) > 100 qualify row_number() over (order by year) > 1";
 //        String sql = "select year, country, profit from (select * from sales) a where year >= 2000 having profit > 200 qualify row_number() over (partition by year, country order by profit desc) = 1";
 //        String sql = "select distinct year + 1,country from sales qualify row_number() over (order by profit + 1) > 1;";
-        String sql = "select distinct year,country, row_number() over (order by profit + 1) as rk from sales qualify rk > 1";
+//        String sql = "select distinct year,country, row_number() over (order by profit + 1) as rk from sales qualify rk > 1";
 //        String sql = "select distinct x.year, x.country, x.product from sales x left join sales y on x.year = y.year left join sales z on x.year = z.year where x.year >= 2000 qualify row_number() over (partition by x.year order by x.profit desc) = 1 order by year";
 //        String sql = "select max(year) over() + 1, sum(profit) as sb from sales group by year having sb > 10 qualify max(year) over() > 5";
 //        String sql = "select year,country, row_number() over (order by year) + 1 from sales qualify row_number() over (order by year) > 5";
 //        String sql = "select distinct year,country from sales having year > 100 qualify row_number() over (order by year) > 1";
 //        String sql = "select distinct year,country from sales having year > 2000 qualify row_number() over (order by year + 1) > 1";
 //        String sql = "select distinct year + 1 as year, country, rank() over (order by year) + 1 from sales having sum(profit) > 1000 qualify rank() over (order by year) > 1";
+//        String sql = "select year + 1, country from sales having profit > 100 qualify row_number() over (order by product) > 1";
+        String sql = "select distinct year + 1,country from sales having sum(profit) > 100 qualify row_number() over (order by year) > 1";
         String string = PlanChecker.from(connectContext).analyze(sql).rewrite().getPlan().treeString();
         System.out.println(string);
     }

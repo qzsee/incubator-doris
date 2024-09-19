@@ -35,6 +35,7 @@ import org.apache.doris.nereids.util.ExpressionUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -116,8 +117,16 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                     return createPlan(project, qualify.getConjuncts(), (newConjuncts, projects) -> {
                         ImmutableList<NamedExpression> copyOutput = ImmutableList.copyOf(project.getOutput());
                         if (project.isDistinct()) {
+                            Set<Slot> notExistedInProject = having.getExpressions().stream()
+                                    .map(Expression::getInputSlots)
+                                    .flatMap(Set::stream)
+                                    .filter(s -> !projects.contains(s))
+                                    .collect(Collectors.toSet());
+                            List<NamedExpression> output = new ArrayList<>();
+                            output.addAll(projects);
+                            output.addAll(notExistedInProject);
                             LogicalQualify<LogicalProject<Plan>> logicalQualify =
-                                    new LogicalQualify<>(newConjuncts, new LogicalProject<>(projects, project.child()));
+                                    new LogicalQualify<>(newConjuncts, new LogicalProject<>(output, project.child()));
                             return having.withChildren(project.withProjects(copyOutput).withChildren(logicalQualify));
                         } else {
                             return new LogicalProject<>(copyOutput, new LogicalQualify<>(newConjuncts,
