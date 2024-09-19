@@ -174,6 +174,10 @@ public class LogicalAggregate<CHILD_TYPE extends Plan>
                 && groupByExpressions.stream().allMatch(e -> e instanceof Slot);
     }
 
+    public boolean distinct() {
+        return outputExpressions.equals(groupByExpressions);
+    }
+
     public boolean isGenerated() {
         return generated;
     }

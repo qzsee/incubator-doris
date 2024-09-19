@@ -231,10 +231,46 @@ public class FillUpMissingSlots implements AnalysisRuleFactory {
             //=============== Fill up qualify missing slot ================================
             /*
               qualify -> agg
+              qualify -> project(distinct)
              */
             RuleType.FILL_UP_QUALIFY_AGGREGATE.build(
                 logicalQualify(aggregate()).then(qualify -> {
                     Aggregate<Plan> agg = qualify.child();
+                    if (agg instanceof LogicalAggregate) {
+                        LogicalAggregate logicalAggregate = (LogicalAggregate) agg;
+                        if (logicalAggregate.distinct()) {
+                            List<NamedExpression> newOutputSlots = Lists.newArrayList();
+                            Set<Expression> newConjuncts = new HashSet<>();
+                            for (Expression conjunct : qualify.getConjuncts()) {
+                                conjunct = conjunct.accept(new DefaultExpressionRewriter<List<NamedExpression>>() {
+                                    @Override
+                                    public Expression visitWindow(WindowExpression window, List<NamedExpression> context) {
+                                        Alias alias = new Alias(window);
+                                        context.add(alias);
+                                        return alias.toSlot();
+                                    }
+                                }, newOutputSlots);
+                                newConjuncts.add(conjunct);
+                            }
+                            Set<Slot> notExistedInProject = qualify.getExpressions().stream()
+                                    .map(Expression::getInputSlots)
+                                    .flatMap(Set::stream)
+                                    .filter(s -> !logicalAggregate.getOutputs().contains(s))
+                                    .collect(Collectors.toSet());
+
+                            newOutputSlots.addAll(notExistedInProject);
+                            if (newOutputSlots.isEmpty()) {
+                                return null;
+                            }
+
+                            List<NamedExpression> projects = ImmutableList.<NamedExpression>builder()
+                                        .addAll(logicalAggregate.getInputSlots())
+                                        .addAll(newOutputSlots).build();
+                            LogicalProject<Plan> bottom = new LogicalProject<>(projects, agg.child());
+                            LogicalQualify<Plan> logicalQualify = new LogicalQualify<>(newConjuncts, bottom);
+                            return agg.withChildren(logicalQualify);
+                        }
+                    }
                     Resolver resolver = new Resolver(agg);
                     qualify.getConjuncts().forEach(resolver::resolve);
                     return createPlan(resolver, agg, (r, a) -> {
