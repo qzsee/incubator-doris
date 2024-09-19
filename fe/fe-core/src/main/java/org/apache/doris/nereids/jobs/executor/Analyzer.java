@@ -36,7 +36,6 @@ import org.apache.doris.nereids.rules.analysis.EliminateDistinctConstant;
 import org.apache.doris.nereids.rules.analysis.EliminateGroupByConstant;
 import org.apache.doris.nereids.rules.analysis.EliminateLogicalSelectHint;
 import org.apache.doris.nereids.rules.analysis.FillUpMissingSlots;
-import org.apache.doris.nereids.rules.analysis.FillUpQualifyMissingSlot;
 import org.apache.doris.nereids.rules.analysis.HavingToFilter;
 import org.apache.doris.nereids.rules.analysis.LeadingJoin;
 import org.apache.doris.nereids.rules.analysis.NormalizeAggregate;
@@ -127,7 +126,6 @@ public class Analyzer extends AbstractBatchJobExecutor {
             topDown(new BindSink()),
             bottomUp(new CheckAfterBind()),
             bottomUp(new AddInitMaterializationHook()),
-            topDown(new FillUpQualifyMissingSlot()),
             bottomUp(
                     new ProjectToGlobalAggregate(),
                     // this rule check's the logicalProject node's isDistinct property
