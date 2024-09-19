@@ -47,6 +47,12 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
     @Override
     public List<Rule> buildRules() {
         return ImmutableList.of(
+            /*
+               qualify -> project(distinct)
+               qualify -> project
+               qualify -> project(distinct) -> agg
+               qualify -> project(distinct) -> having -> agg
+             */
             RuleType.FILL_UP_QUALIFY_PROJECT.build(
                 logicalQualify(logicalProject())
                     .then(qualify -> {
@@ -59,6 +65,9 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                         });
                     })
             ),
+            /*
+               qualify -> agg
+             */
             RuleType.FILL_UP_QUALIFY_AGGREGATE.build(
                 logicalQualify(aggregate()).then(qualify -> {
                     Aggregate<Plan> agg = qualify.child();
@@ -75,6 +84,9 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                     });
                 })
             ),
+            /*
+               qualify -> having -> agg
+             */
             RuleType.FILL_UP_QUALIFY_HAVING_AGGREGATE.build(
                 logicalQualify(logicalHaving(aggregate())).then(qualify -> {
                     LogicalHaving<Aggregate<Plan>> having = qualify.child();
@@ -93,6 +105,10 @@ public class FillUpQualifyMissingSlot extends FillUpMissingSlots {
                     });
                 })
             ),
+            /*
+               qualify -> having -> project
+               qualify -> having -> project(distinct)
+             */
             RuleType.FILL_UP_QUALIFY_HAVING_PROJECT.build(
                 logicalQualify(logicalHaving(logicalProject())).then(qualify -> {
                     LogicalHaving<LogicalProject<Plan>> having = qualify.child();
