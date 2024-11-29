@@ -157,10 +157,9 @@ public:
                     left += interval;
                     bucket_json.AddMember("upper", left, allocator);
                     count = (idx == key) ? count_ : 0;
-                    bucket_json.AddMember("count", count, allocator);
+                    bucket_json.AddMember("count", static_cast<uint64_t>(count), allocator);
                     acc_count += count;
-                    bucket_json.AddMember("acc_count", acc_count, allocator);
-
+                    bucket_json.AddMember("acc_count", static_cast<uint64_t>(acc_count), allocator);
                     bucket_arr.PushBack(bucket_json, allocator);
                 }
             }
@@ -200,7 +199,7 @@ public:
     DataTypePtr get_return_type() const override { return std::make_shared<DataTypeString>(); }
 
     void add(AggregateDataPtr __restrict place, const IColumn** columns, ssize_t row_num,
-             Arena* arena) const override {
+             Arena*) const override {
         double interval =
                 assert_cast<const ColumnFloat64&, TypeCheckOnRelease::DISABLE>(*columns[1])
                         .get_data()[row_num];
@@ -234,7 +233,7 @@ public:
     void reset(AggregateDataPtr place) const override { this->data(place).reset(); }
 
     void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs,
-               Arena* arena) const override {
+               Arena*) const override {
         this->data(place).merge(this->data(rhs));
     }
 

@@ -285,6 +285,7 @@ terminal String
     KW_BIN,
     KW_BINLOG,
     KW_BITMAP,
+    KW_BITMAP_EMPTY,
     KW_BITMAP_UNION,
     KW_BLOB,
     KW_BOOLEAN,
@@ -1702,9 +1703,9 @@ alter_table_clause ::=
     {:
         RESULT = new ReplacePartitionClause(partitions, tempPartitions, isForce, properties);
     :}
-    | KW_REPLACE KW_WITH KW_TABLE ident:tblName opt_properties:properties
+    | KW_REPLACE KW_WITH KW_TABLE ident:tblName opt_properties:properties opt_force:force
     {:
-        RESULT = new ReplaceTableClause(tblName, properties);
+        RESULT = new ReplaceTableClause(tblName, properties, force);
     :}
     | KW_RENAME ident:newTableName
     {:
@@ -3971,6 +3972,10 @@ opt_default_value ::=
     | KW_DEFAULT KW_CURRENT_TIMESTAMP LPAREN INTEGER_LITERAL:precision RPAREN
     {:
         RESULT = ColumnDef.DefaultValue.currentTimeStampDefaultValueWithPrecision(precision);
+    :}
+    | KW_DEFAULT KW_BITMAP_EMPTY
+    {:
+        RESULT = ColumnDef.DefaultValue.BITMAP_EMPTY_DEFAULT_VALUE;
     :}
     | KW_DEFAULT INTEGER_LITERAL:value
     {:
@@ -7971,9 +7976,9 @@ admin_stmt ::=
     ;
 
 truncate_stmt ::=
-    KW_TRUNCATE KW_TABLE base_table_ref:tblRef
+    KW_TRUNCATE KW_TABLE base_table_ref:tblRef opt_force:force
     {:
-        RESULT = new TruncateTableStmt(tblRef);
+        RESULT = new TruncateTableStmt(tblRef, force);
     :}
     ;
 
@@ -8101,6 +8106,8 @@ keyword ::=
     | KW_BIN:id
     {: RESULT = id; :}
     | KW_BITMAP:id
+    {: RESULT = id; :}
+    | KW_BITMAP_EMPTY:id
     {: RESULT = id; :}
     | KW_QUANTILE_STATE:id
     {: RESULT = id; :}

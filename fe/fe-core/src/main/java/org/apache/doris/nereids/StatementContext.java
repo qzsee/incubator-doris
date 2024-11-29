@@ -24,6 +24,9 @@ import org.apache.doris.common.FormatOptions;
 import org.apache.doris.common.Id;
 import org.apache.doris.common.IdGenerator;
 import org.apache.doris.common.Pair;
+import org.apache.doris.datasource.mvcc.MvccSnapshot;
+import org.apache.doris.datasource.mvcc.MvccTable;
+import org.apache.doris.datasource.mvcc.MvccTableInfo;
 import org.apache.doris.nereids.hint.Hint;
 import org.apache.doris.nereids.memo.Group;
 import org.apache.doris.nereids.rules.analysis.ColumnAliasGenerator;
@@ -47,18 +50,19 @@ import org.apache.doris.qe.SessionVariable;
 import org.apache.doris.qe.ShortCircuitQueryContext;
 import org.apache.doris.qe.cache.CacheAnalyzer;
 import org.apache.doris.statistics.Statistics;
+import org.apache.doris.system.Backend;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sparkproject.guava.base.Throwables;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -168,6 +172,14 @@ public class StatementContext implements Closeable {
     private FormatOptions formatOptions = FormatOptions.getDefault();
 
     private List<PlannerHook> plannerHooks = new ArrayList<>();
+
+    private String disableJoinReorderReason;
+
+    private Backend groupCommitMergeBackend;
+
+    private final Map<MvccTableInfo, MvccSnapshot> snapshots = Maps.newHashMap();
+
+    private boolean privChecked;
 
     public StatementContext() {
         this(ConnectContext.get(), null, 0);
@@ -503,6 +515,32 @@ public class StatementContext implements Closeable {
         this.plannerHooks.add(plannerHook);
     }
 
+    /**
+     * Load snapshot information of mvcc
+     *
+     * @param tables Tables used in queries
+     */
+    public void loadSnapshots(Map<List<String>, TableIf> tables) {
+        if (tables == null) {
+            return;
+        }
+        for (TableIf tableIf : tables.values()) {
+            if (tableIf instanceof MvccTable) {
+                snapshots.put(new MvccTableInfo(tableIf), ((MvccTable) tableIf).loadSnapshot());
+            }
+        }
+    }
+
+    /**
+     * Obtain snapshot information of mvcc
+     *
+     * @param mvccTable mvccTable
+     * @return MvccSnapshot
+     */
+    public MvccSnapshot getSnapshot(MvccTable mvccTable) {
+        return snapshots.get(new MvccTableInfo(mvccTable));
+    }
+
     private static class CloseableResource implements Closeable {
         public final String resourceName;
         public final String threadName;
@@ -557,5 +595,30 @@ public class StatementContext implements Closeable {
         tableId = StatementScopeIdGenerator.newTableId();
         this.tableIdMapping.put(tableIdentifier, tableId);
         return tableId;
+    }
+
+    public Optional<String> getDisableJoinReorderReason() {
+        return Optional.ofNullable(disableJoinReorderReason);
+    }
+
+    public void setDisableJoinReorderReason(String disableJoinReorderReason) {
+        this.disableJoinReorderReason = disableJoinReorderReason;
+    }
+
+    public Backend getGroupCommitMergeBackend() {
+        return groupCommitMergeBackend;
+    }
+
+    public void setGroupCommitMergeBackend(
+            Backend groupCommitMergeBackend) {
+        this.groupCommitMergeBackend = groupCommitMergeBackend;
+    }
+
+    public boolean isPrivChecked() {
+        return privChecked;
+    }
+
+    public void setPrivChecked(boolean privChecked) {
+        this.privChecked = privChecked;
     }
 }

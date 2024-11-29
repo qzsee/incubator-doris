@@ -524,7 +524,7 @@ class Config {
             // docker suite no need external cluster.
             // so can ignore error here.
         }
-
+        config.excludeUnsupportedCase()
         return config
     }
 
@@ -669,7 +669,7 @@ class Config {
             if (config.s3Source == "aliyun") {
                 s3BucketName = "doris-regression-hk"
             } else if (config.s3Source == "aliyun-internal") {
-                s3BucketName = "doris-regression"
+                s3BucketName = "doris-regression-bj"
             } else if (config.s3Source == "tencent") {
                 s3BucketName = "doris-build-1308700295"
             } else if (config.s3Source == "huawei") {
@@ -1008,6 +1008,33 @@ class Config {
         }
     }
 
+    boolean isClusterKeyEnabled() {
+        try {
+            def result = JdbcUtils.executeToMapArray(getRootConnection(), "SHOW FRONTEND CONFIG LIKE 'random_add_cluster_keys_for_mow'")
+            log.info("show random_add_cluster_keys_for_mow config: ${result}".toString())
+            return result[0].Value.toString().equalsIgnoreCase("true")
+        } catch (Throwable t) {
+            log.warn("Fetch server config 'random_add_cluster_keys_for_mow' failed, jdbcUrl: ${jdbcUrl}".toString(), t)
+            return false
+        }
+    }
+
+    void excludeUnsupportedCase() {
+        boolean isCKEnabled = isClusterKeyEnabled()
+        log.info("random_add_cluster_keys_for_mow in fe.conf: ${isCKEnabled}".toString())
+        if (isCKEnabled) {
+            excludeDirectorySet.add("unique_with_mow_p0/partial_update")
+            excludeDirectorySet.add("unique_with_mow_p0/flexible")
+            excludeDirectorySet.add("doc")
+            List<String> excludeCases = ["test_table_properties", "test_default_hll", "test_default_pi", "test_full_compaction", "test_full_compaction_by_table_id", "test_create_table", "txn_insert", "test_update_mow", "test_new_update", "test_update_unique", "test_partial_update_generated_column", "nereids_partial_update_native_insert_stmt", "partial_update", "nereids_update_on_current_timestamp", "update_on_current_timestamp", "test_default_bitmap_empty", "nereids_delete_mow_partial_update", "delete_mow_partial_update", "partial_update_seq_col", "nereids_partial_update_native_insert_stmt_complex", "regression_test_variant_delete_and_update", "test_unique_table_auto_inc_partial_update_correct_stream_load", "test_unique_table_auto_inc", "test_unique_table_auto_inc_partial_update_correct_insert", "test_update_schema_change"]
+            for (def excludeCase in excludeCases) {
+                excludeSuiteWildcard.add(excludeCase)
+            }
+            log.info("excludeDirectorySet: ${excludeDirectorySet}".toString())
+            log.info("excludeSuiteWildcard: ${excludeSuiteWildcard}".toString())
+        }
+    }
+
     Connection getConnection() {
         return DriverManager.getConnection(jdbcUrl, jdbcUser, jdbcPassword)
     }
@@ -1134,6 +1161,14 @@ class Config {
         urlWithDb = addTimeoutUrl(urlWithDb);
 
         return urlWithDb
+    }
+
+    public static String buildUrlWithDb(String host, int queryPort, String dbName) {
+        def url = String.format(
+            "jdbc:mysql://%s:%s/?useLocalSessionState=true&allowLoadLocalInfile=false",
+            host, queryPort)
+        url = buildUrlWithDb(url, dbName)
+        return url
     }
 
     private static String addSslUrl(String url) {
