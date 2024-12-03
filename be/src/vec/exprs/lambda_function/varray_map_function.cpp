@@ -142,12 +142,12 @@ public:
             lambda_block.insert(std::move(data_column));
         }
 
-        LOG(INFO) << "[shi] map lambda lambda_block : " << lambda_block.dump_structure();
+        LOG(INFO) << "[shi] map lambda lambda_block : " << lambda_block.dump_data();
 
         //3. child[0]->execute(new_block)
         RETURN_IF_ERROR(children[0]->execute(context, &lambda_block, result_column_id));
 
-        LOG(INFO) << "[shi] map lambda lambda_block1 : " << lambda_block.dump_structure();
+        LOG(INFO) << "[shi] map lambda lambda_block1 : " << lambda_block.dump_data();
 
 
         auto res_col = lambda_block.get_by_position(*result_column_id)
@@ -189,7 +189,7 @@ public:
         }
         block->insert(std::move(result_arr));
         *result_column_id = block->columns() - 1;
-        LOG(INFO) << "[shi] map block res : " << block->dump_structure();
+        LOG(INFO) << "[shi] map block res : " << block->dump_data();
 
         return Status::OK();
     }
