@@ -59,6 +59,8 @@ public:
                           const VExprSPtrs& children) override {
         ///* array_map(lambda,arg1,arg2,.....) *///
 
+        LOG(INFO) << "[shi] map input data : " << block->dump_data();
+        LOG(INFO) << "[shi] map input data : " << block->dump_structure();
         //1. child[1:end]->execute(src_block)
         doris::vectorized::ColumnNumbers arguments(children.size() - 1);
         for (int i = 1; i < children.size(); ++i) {
@@ -67,6 +69,8 @@ public:
             arguments[i - 1] = column_id;
         }
 
+        LOG(INFO) << "[shi] map input data1 : " << block->dump_data();
+        LOG(INFO) << "[shi] map input data1 : " << block->dump_structure();
         // used for save column array outside null map
         auto outside_null_map =
                 ColumnUInt8::create(block->get_by_position(arguments[0])
