@@ -198,7 +198,7 @@ public class MTMVService implements EventListener {
             try {
                 // check if mtmv should trigger by event
                 MTMV mtmv = (MTMV) MTMVUtil.getTable(baseTableInfo);
-                if (canRefresh(mtmv, baseTableInfo)) {
+                if (canRefresh(mtmv, table)) {
                     jobManager.onCommit(mtmv);
                 }
             } catch (Exception e) {
@@ -207,10 +207,10 @@ public class MTMVService implements EventListener {
         }
     }
 
-    private boolean canRefresh(MTMV mtmv, BaseTableInfo baseTableInfo)  {
-        if (mtmv.getExcludedTriggerTables().contains(baseTableInfo.getTableName())) {
+    private boolean canRefresh(MTMV mtmv, TableIf table)   {
+        if (mtmv.getExcludedTriggerTables().contains(table.getName())) {
             LOG.info("skip refresh mtmv: {}, because exclude trigger table: {}",
-                    mtmv.getName(), baseTableInfo.getTableName());
+                    mtmv.getName(), table.getName());
             return false;
         }
         return mtmv.getRefreshInfo().getRefreshTriggerInfo().getRefreshTrigger().equals(RefreshTrigger.COMMIT);
