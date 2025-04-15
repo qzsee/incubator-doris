@@ -508,10 +508,12 @@ void RuntimeQueryStatisticsMgr::get_active_be_tasks_block(vectorized::Block* blo
         SchemaScannerHelper::insert_int64_value(5, tqs.cpu_ms, block);
         SchemaScannerHelper::insert_int64_value(6, tqs.scan_rows, block);
         SchemaScannerHelper::insert_int64_value(7, tqs.scan_bytes, block);
-        SchemaScannerHelper::insert_int64_value(8, tqs.max_peak_memory_bytes, block);
-        SchemaScannerHelper::insert_int64_value(9, tqs.current_used_memory_bytes, block);
-        SchemaScannerHelper::insert_int64_value(10, tqs.shuffle_send_bytes, block);
-        SchemaScannerHelper::insert_int64_value(11, tqs.shuffle_send_rows, block);
+        SchemaScannerHelper::insert_int64_value(8, tqs.load_rows, block);
+        SchemaScannerHelper::insert_int64_value(9, tqs.load_bytes, block);
+        SchemaScannerHelper::insert_int64_value(10, tqs.max_peak_memory_bytes, block);
+        SchemaScannerHelper::insert_int64_value(11, tqs.current_used_memory_bytes, block);
+        SchemaScannerHelper::insert_int64_value(12, tqs.shuffle_send_bytes, block);
+        SchemaScannerHelper::insert_int64_value(13, tqs.shuffle_send_rows, block);
 
         std::stringstream ss;
         ss << resource_ctx->task_controller()->query_type();
