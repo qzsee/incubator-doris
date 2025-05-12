@@ -45,6 +45,7 @@
 #include "exec/schema_scanner/schema_rowsets_scanner.h"
 #include "exec/schema_scanner/schema_schema_privileges_scanner.h"
 #include "exec/schema_scanner/schema_schemata_scanner.h"
+#include "exec/schema_scanner/schema_stream_load_scanner.h"
 #include "exec/schema_scanner/schema_table_options_scanner.h"
 #include "exec/schema_scanner/schema_table_privileges_scanner.h"
 #include "exec/schema_scanner/schema_table_properties_scanner.h"
@@ -231,6 +232,8 @@ std::unique_ptr<SchemaScanner> SchemaScanner::create(TSchemaTableType::type type
         return SchemaBackendKerberosTicketCacheScanner::create_unique();
     case TSchemaTableType::SCH_ROUTINE_LOAD_JOBS:
         return SchemaRoutineLoadJobScanner::create_unique();
+    case TSchemaTableType::SCH_STREAM_LOAD:
+        return SchemaStreamLoadScanner::create_unique();
     default:
         return SchemaDummyScanner::create_unique();
         break;

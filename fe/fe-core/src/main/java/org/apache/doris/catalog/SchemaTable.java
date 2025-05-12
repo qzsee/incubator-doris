@@ -621,6 +621,18 @@ public class SchemaTable extends Table {
                                     .column("IS_ABNORMAL_PAUSE", ScalarType.createType(PrimitiveType.BOOLEAN))
                                     .build())
             )
+            .put("stream_load",
+                    new SchemaTable(SystemIdGenerator.getNextId(), "stream_load", TableType.SCHEMA,
+                            builder().column("BE_ID", ScalarType.createType(PrimitiveType.BIGINT))
+                                    .column("QUERY_ID", ScalarType.createVarchar(256))
+                                    .column("TXN_ID", ScalarType.createType(PrimitiveType.BIGINT))
+                                    .column("LABEL", ScalarType.createVarchar(4096))
+                                    .column("DATABASE", ScalarType.createVarchar(4096))
+                                    .column("TABLE", ScalarType.createVarchar(4096))
+                                    .column("USER", ScalarType.createVarchar(256))
+                                    .column("CLIENT_IP", ScalarType.createVarchar(256))
+                                    .column("START_TIME", ScalarType.createType(PrimitiveType.BIGINT))
+                                    .build()))
             .build();
 
     private boolean fetchAllFe = false;

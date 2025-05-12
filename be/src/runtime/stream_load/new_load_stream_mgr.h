@@ -24,11 +24,14 @@
 #include <unordered_map>
 #include <utility>
 
+#include "stream_load_context.h"
 #include "common/factory_creator.h"
 #include "common/logging.h"
 #include "common/status.h"
+#include "exec/schema_scanner/schema_scanner_helper.h"
 #include "util/debug_points.h"
 #include "util/uid_util.h"
+#include "runtime/exec_env.h"
 
 namespace doris {
 
@@ -75,6 +78,24 @@ public:
         if (auto iter = _stream_map.find(id); iter != _stream_map.end()) {
             _stream_map.erase(iter);
             VLOG_NOTICE << "remove stream load pipe: " << id;
+        }
+    }
+
+    void get_all_stream_load_block(vectorized::Block* block) {
+        std::lock_guard<std::mutex> l(_lock);
+        int64_t be_id = ExecEnv::GetInstance()->cluster_info()->backend_id;
+
+        for (auto& [query_id, ctx_ptr] : _stream_map) {
+            int col_idx = 0;
+            SchemaScannerHelper::insert_int64_value(col_idx++, be_id, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, query_id.to_string(), block);
+            SchemaScannerHelper::insert_int64_value(col_idx++, ctx_ptr->txn_id, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, ctx_ptr->label, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, ctx_ptr->db, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, ctx_ptr->table, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, ctx_ptr->auth.user, block);
+            SchemaScannerHelper::insert_string_value(col_idx++, ctx_ptr->auth.user_ip, block);
+            SchemaScannerHelper::insert_int64_value(col_idx++, ctx_ptr->start_millis, block);
         }
     }
 
