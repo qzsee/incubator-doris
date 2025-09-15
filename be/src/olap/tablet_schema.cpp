@@ -1004,6 +1004,7 @@ void TabletSchema::init_from_pb(const TabletSchemaPB& schema, bool ignore_extrac
             _vl_field_mem_size += sizeof(StringRef) + sizeof(char) * _cols.back()->name().size() +
                                   sizeof(int32_t);
             _field_name_to_index.emplace(StringRef(_cols.back()->name()), _num_columns);
+            LOG(INFO) << "[shi] put tablet_schema " << _cols.back()->name() << " index :" << _num_columns;
             _vl_field_mem_size += sizeof(int32_t) * 2;
             _field_id_to_index[_cols.back()->unique_id()] = _num_columns;
         }

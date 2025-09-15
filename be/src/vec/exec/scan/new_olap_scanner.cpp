@@ -158,9 +158,11 @@ Status NewOlapScanner::init() {
         }
         if (cached_schema) {
             tablet_schema = cached_schema;
+            LOG(INFO) << "[shi] cache tablet_schema ";
         } else {
             tablet_schema = std::make_shared<TabletSchema>();
             tablet_schema->copy_from(*tablet->tablet_schema());
+            LOG(INFO) << "[shi] get tablet_schema " << tablet_schema;
             if (olap_scan_node.__isset.columns_desc && !olap_scan_node.columns_desc.empty() &&
                 olap_scan_node.columns_desc[0].col_unique_id >= 0) {
                 // Originally scanner get TabletSchema from tablet object in BE.
