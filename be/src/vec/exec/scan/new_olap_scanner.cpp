@@ -213,6 +213,8 @@ Status NewOlapScanner::init() {
             _tablet_reader_params.set_read_source(std::move(read_source));
         }
 
+        LOG(INFO) << "[shi] full schema name " << tablet_schema->get_all_field_names();
+
         // Initialize tablet_reader_params
         RETURN_IF_ERROR(_init_tablet_reader_params(_key_ranges, local_state->_olap_filters,
                                                    local_state->_filter_predicates,
@@ -460,6 +462,7 @@ Status NewOlapScanner::_init_return_columns() {
         // variant column using path to index a column
         int32_t index = 0;
         auto& tablet_schema = _tablet_reader_params.tablet_schema;
+        LOG(INFO) << "[shi] _init_return_columns : " << tablet_schema->get_all_field_names();
         if (slot->type().is_variant_type()) {
             index = tablet_schema->field_index(PathInData(
                     tablet_schema->column_by_uid(slot->col_unique_id()).name_lower_case(),
