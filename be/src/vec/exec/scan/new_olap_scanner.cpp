@@ -158,7 +158,6 @@ Status NewOlapScanner::init() {
         }
         if (cached_schema) {
             tablet_schema = cached_schema;
-            LOG(INFO) << "[shi] cache tablet_schema ";
         } else {
             tablet_schema = std::make_shared<TabletSchema>();
             tablet_schema->copy_from(*tablet->tablet_schema());
@@ -171,7 +170,6 @@ Status NewOlapScanner::init() {
                 //  so we have to use schema from a query plan witch FE puts it in query plans.
                 tablet_schema->clear_columns();
                 for (const auto& column_desc : olap_scan_node.columns_desc) {
-                    LOG(INFO) << "[shi] clear columns col name: " << column_desc.column_name;
                     tablet_schema->append_column(TabletColumn(column_desc));
                 }
                 if (olap_scan_node.__isset.schema_version) {
@@ -483,12 +481,12 @@ Status NewOlapScanner::_init_return_columns() {
         if (slot->is_nullable() && !tablet_schema->column(index).is_nullable()) {
             _tablet_columns_convert_to_null_set.emplace(index);
         } else if (!slot->is_nullable() && tablet_schema->column(index).is_nullable()) {
-            if (slot->is_nullable()) {
-                LOG(INFO) << "[shi] slot is nullable : " << slot->col_name();
-            }
-            if (tablet_schema->column(index).is_nullable()) {
-                LOG(INFO) << "[shi] tablet_schema slot is nullable : " << tablet_schema->column(index).name();
-            }
+            // if (slot->is_nullable()) {
+            //     LOG(INFO) << "[shi] slot is nullable : " << slot->col_name();
+            // }
+            // if (tablet_schema->column(index).is_nullable()) {
+            //     LOG(INFO) << "[shi] tablet_schema slot is nullable : " << tablet_schema->column(index).name();
+            // }
             return Status::Error<ErrorCode::INVALID_SCHEMA>(
                     "slot(id: {}, name: {})'s nullable does not match "
                     "column(tablet id: {}, index: {}, name: {}) ",

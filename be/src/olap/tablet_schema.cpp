@@ -883,6 +883,7 @@ void TabletSchema::append_column(TabletColumn column, ColumnType col_type) {
         _version_col_idx = _num_columns;
     }
     _field_id_to_index[column.unique_id()] = _num_columns;
+    LOG(INFO) << "[shi] col name : " << column.name() << " index : " << _num_columns <<  "uid :" << column.unique_id();
     _cols.push_back(std::make_shared<TabletColumn>(std::move(column)));
     // The dropped column may have same name with exsiting column, so that
     // not add to name to index map, only for uid to index map
@@ -892,7 +893,7 @@ void TabletSchema::append_column(TabletColumn column, ColumnType col_type) {
         _field_path_to_index[_cols.back()->path_info_ptr().get()] = _num_columns;
     } else if (col_type == ColumnType::NORMAL) {
         _field_name_to_index.emplace(StringRef(_cols.back()->name()), _num_columns);
-        LOG(INFO) << "[shi] go col name : " << _cols.back()->name() << " index : " << _num_columns;
+        LOG(INFO) << "[shi] col name : " << _cols.back()->name() << " index : " << _num_columns <<  "uid :" << _cols.back()->unique_id();;
     }
     _num_columns++;
 }
