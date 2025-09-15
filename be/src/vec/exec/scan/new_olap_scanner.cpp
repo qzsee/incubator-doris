@@ -171,6 +171,7 @@ Status NewOlapScanner::init() {
                 //  so we have to use schema from a query plan witch FE puts it in query plans.
                 tablet_schema->clear_columns();
                 for (const auto& column_desc : olap_scan_node.columns_desc) {
+                    LOG(INFO) << "[shi] clear columns col name: " << column_desc.column_name;
                     tablet_schema->append_column(TabletColumn(column_desc));
                 }
                 if (olap_scan_node.__isset.schema_version) {

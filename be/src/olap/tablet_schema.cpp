@@ -892,6 +892,7 @@ void TabletSchema::append_column(TabletColumn column, ColumnType col_type) {
         _field_path_to_index[_cols.back()->path_info_ptr().get()] = _num_columns;
     } else if (col_type == ColumnType::NORMAL) {
         _field_name_to_index.emplace(StringRef(_cols.back()->name()), _num_columns);
+        LOG(INFO) << "[shi] go col name : " << _cols.back()->name() << " index : " << _num_columns;
     }
     _num_columns++;
 }
