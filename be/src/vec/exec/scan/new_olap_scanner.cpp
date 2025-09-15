@@ -464,6 +464,8 @@ Status NewOlapScanner::_init_return_columns() {
         } else {
             index = slot->col_unique_id() >= 0 ? tablet_schema->field_index(slot->col_unique_id())
                                                : tablet_schema->field_index(slot->col_name());
+            LOG(INFO) << "[shi] slot " << slot->col_name() << " index " << index;
+            LOG(INFO) << "[shi] schema name : " << tablet_schema->column(index).name();
         }
 
         if (index < 0) {
@@ -475,6 +477,12 @@ Status NewOlapScanner::_init_return_columns() {
         if (slot->is_nullable() && !tablet_schema->column(index).is_nullable()) {
             _tablet_columns_convert_to_null_set.emplace(index);
         } else if (!slot->is_nullable() && tablet_schema->column(index).is_nullable()) {
+            if (slot->is_nullable()) {
+                LOG(INFO) << "[shi] slot is nullable : " << slot->col_name();
+            }
+            if (tablet_schema->column(index).is_nullable()) {
+                LOG(INFO) << "[shi] tablet_schema slot is nullable : " << tablet_schema->column(index).name();
+            }
             return Status::Error<ErrorCode::INVALID_SCHEMA>(
                     "slot(id: {}, name: {})'s nullable does not match "
                     "column(tablet id: {}, index: {}, name: {}) ",
