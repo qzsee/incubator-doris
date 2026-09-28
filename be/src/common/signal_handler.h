@@ -35,6 +35,7 @@
 
 #include <butil/macros.h> // ARRAYSIZE_UNSAFE
 #include <glog/logging.h>
+#include <unistd.h>
 
 #include <boost/stacktrace.hpp>
 #include <csignal>
@@ -331,6 +332,12 @@ void InvokeDefaultSignalHandler(int signal_number) {
     kill(getpid(), signal_number);
 }
 
+// Fired by alarm() if FailureSignalHandler() wedges. Re-raise as SIGABRT
+// rather than let SIGALRM terminate us, so we still get a core.
+void FailureWatchdogHandler(int /*signal_number*/) {
+    InvokeDefaultSignalHandler(SIGABRT);
+}
+
 // This variable is used for protecting FailureSignalHandler() from
 // dumping stuff while another thread is doing it.  Our policy is to let
 // the first thread dump stuff and let other threads wait.
@@ -398,8 +405,17 @@ void FailureSignalHandler(int signal_number, siginfo_t* signal_info, void* ucont
     }
     // This is the first time we enter the signal handler.  We are going to
     // do some interesting stuff from here.
-    // TODO(satorux): We might want to set timeout here using alarm(), but
-    // mixing alarm() and sleep() can be a bad idea.
+    //
+    // This handler runs on the faulting thread. If that thread faulted while
+    // holding the allocator lock, anything below that allocates blocks on a
+    // lock only this thread could release: the process then neither serves
+    // traffic nor dies. Time-bound it.
+    //
+    // The TODO dropped here warned against mixing alarm() and sleep(): sleep()
+    // was once built on alarm() and would cancel it. Modern glibc uses
+    // nanosleep(), so the two are independent -- see SleepDoesNotCancelAlarm.
+    ::signal(SIGALRM, &FailureWatchdogHandler);
+    alarm(60);
 
     // First dump time info.
     DumpTimeInfo();
@@ -414,7 +430,8 @@ void FailureSignalHandler(int signal_number, siginfo_t* signal_info, void* ucont
     // The process could be terminated or hung at any time.  We try to
     // do more useful things first and riskier things later.
 
-    // Use boost stacktrace to print more detail info
+    // Use boost stacktrace to print more detail info.
+    // Allocates, so it may deadlock on an allocator crash; alarm() covers that.
     std::cout << boost::stacktrace::stacktrace() << std::endl;
 
     // Flush the logs before we do anything in case 'anything'
