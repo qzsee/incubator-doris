@@ -584,6 +584,7 @@ public class CloudTabletRebalancer extends MasterDaemon {
                 if (migrated) {
                     statRouteInfo();
                 }
+                holdSchedulingIndexesForDebug();
 
                 indexBalanced = true;
                 tableBalanced = true;
@@ -614,6 +615,37 @@ public class CloudTabletRebalancer extends MasterDaemon {
         } finally {
             rebalancerMetrics.finishRound(metricRound, currentRoundTabletScanCount);
         }
+    }
+
+    /**
+     * Test only: hold the rebalancer thread after the scheduling indexes are built, so that they can be
+     * inspected by jmap. Each add of the debug point holds one round, until the debug point is removed or
+     * the hold time is reached. Do not pass "execute", every check in the loop consumes one execution.
+     *
+     * curl -X POST "http://fe:8030/api/debug_point/add/CloudTabletRebalancer.holdSchedulingIndexes?seconds=1800"
+     * curl -X POST "http://fe:8030/api/debug_point/remove/CloudTabletRebalancer.holdSchedulingIndexes"
+     */
+    private void holdSchedulingIndexesForDebug() {
+        final String debugPointName = "CloudTabletRebalancer.holdSchedulingIndexes";
+        if (!DebugPointUtil.isEnable(debugPointName)) {
+            return;
+        }
+        long holdSeconds = DebugPointUtil.getDebugParamOrDefault(debugPointName, "seconds", 1800L);
+        long start = System.currentTimeMillis();
+        long deadline = start + holdSeconds * 1000L;
+        LOG.info("debug point {} enabled, hold the scheduling indexes for at most {} s",
+                debugPointName, holdSeconds);
+        while (System.currentTimeMillis() < deadline && DebugPointUtil.isEnable(debugPointName)) {
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        // hold only once per add, otherwise the next round would be held again after timeout
+        DebugPointUtil.removeDebugPoint(debugPointName);
+        LOG.info("debug point {} released after {} ms", debugPointName, System.currentTimeMillis() - start);
     }
 
     private void buildClusterToBackendMap() {
