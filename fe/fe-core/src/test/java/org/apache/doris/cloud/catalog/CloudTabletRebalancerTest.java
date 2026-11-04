@@ -36,6 +36,9 @@ import org.apache.doris.metric.MetricRepo;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.SystemInfoService;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +56,7 @@ import java.util.AbstractList;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -231,10 +235,27 @@ public class CloudTabletRebalancerTest {
 
     private static class RouteMaps {
         private final ConcurrentHashMap<Long, Set<Long>> global = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> byTable =
+        private final ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> byTable =
                 new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        private final ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 byPartition = new ConcurrentHashMap<>();
+    }
+
+    private static LongOpenHashSet tableTablets(
+            Map<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> byTable, long tableId, long beId) {
+        Long2ObjectOpenHashMap<LongOpenHashSet> beToTablets = byTable.get(tableId);
+        LongOpenHashSet tablets = beToTablets == null ? null : beToTablets.get(beId);
+        return tablets == null ? new LongOpenHashSet() : tablets;
+    }
+
+    private static LongArrayList partitionTablets(
+            Map<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>> byPartition,
+            long partitionId, long indexId, long beId) {
+        Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>> indexToTablets = byPartition.get(partitionId);
+        Long2ObjectOpenHashMap<LongArrayList> beToTablets = indexToTablets == null ? null
+                : indexToTablets.get(indexId);
+        LongArrayList tablets = beToTablets == null ? null : beToTablets.get(beId);
+        return tablets == null ? new LongArrayList() : tablets;
     }
 
     @Test
@@ -449,40 +470,38 @@ public class CloudTabletRebalancerTest {
         Long indexId = 40_001L;
         Long tabletId = 50_001L;
 
-        ConcurrentHashMap<Long, Set<Long>> currentGlobal = new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> currentByTable =
-                new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>> currentByPartition =
-                new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, Set<Long>> futureGlobal = new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> futureByTable =
-                new ConcurrentHashMap<>();
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>> futureByPartition =
-                new ConcurrentHashMap<>();
+        RouteMaps current = new RouteMaps();
+        RouteMaps future = new RouteMaps();
 
         rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, tabletId,
-                currentGlobal, currentByTable, currentByPartition);
+                current.global, current.byTable, current.byPartition);
         rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, tabletId,
-                futureGlobal, futureByTable, futureByPartition);
+                future.global, future.byTable, future.byPartition);
 
-        assertSameStoredId(beId, currentGlobal);
-        assertSameStoredId(beId, currentByTable.get(tableId));
-        assertSameStoredId(beId, currentByPartition.get(partitionId).get(indexId));
-        assertSameStoredId(beId, futureGlobal);
-        assertSameStoredId(beId, futureByTable.get(tableId));
-        assertSameStoredId(beId, futureByPartition.get(partitionId).get(indexId));
-        assertSameStoredId(tableId, currentByTable);
-        assertSameStoredId(tableId, futureByTable);
-        assertSameStoredId(partitionId, currentByPartition);
-        assertSameStoredId(partitionId, futureByPartition);
-        assertSameStoredId(indexId, currentByPartition.get(partitionId));
-        assertSameStoredId(indexId, futureByPartition.get(partitionId));
-        assertSameStoredId(tabletId, currentGlobal.get(beId));
-        assertSameStoredId(tabletId, currentByTable.get(tableId).get(beId));
-        assertSameStoredId(tabletId, currentByPartition.get(partitionId).get(indexId).get(beId));
-        assertSameStoredId(tabletId, futureGlobal.get(beId));
-        assertSameStoredId(tabletId, futureByTable.get(tableId).get(beId));
-        assertSameStoredId(tabletId, futureByPartition.get(partitionId).get(indexId).get(beId));
+        assertSameRouteIds(beId, tableId, partitionId, indexId, tabletId, current);
+        assertSameRouteIds(beId, tableId, partitionId, indexId, tabletId, future);
+    }
+
+    @Test
+    public void testFillBeToTabletsAddsDuplicateRouteOnce() {
+        TestRebalancer rebalancer = new TestRebalancer();
+        long beId = 1L;
+        long tableId = 2L;
+        long partitionId = 3L;
+        long indexId = 4L;
+        RouteMaps routes = new RouteMaps();
+
+        // e.g. two replicas of the same tablet routed to the same backend
+        rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, 5L,
+                routes.global, routes.byTable, routes.byPartition);
+        rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, 5L,
+                routes.global, routes.byTable, routes.byPartition);
+        rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, 6L,
+                routes.global, routes.byTable, routes.byPartition);
+
+        Assertions.assertEquals(Set.of(5L, 6L), routes.global.get(beId));
+        Assertions.assertEquals(Set.of(5L, 6L), tableTablets(routes.byTable, tableId, beId));
+        Assertions.assertEquals(List.of(5L, 6L), partitionTablets(routes.byPartition, partitionId, indexId, beId));
     }
 
     @Test
@@ -506,6 +525,8 @@ public class CloudTabletRebalancerTest {
             Assertions.assertTrue(moved);
             assertSameRouteIds(destBe, tableId, partitionId, indexId, tabletId, current);
             assertSameRouteIds(destBe, tableId, partitionId, indexId, tabletId, future);
+            assertNotRouted(srcBe, tableId, partitionId, indexId, tabletId, current);
+            assertNotRouted(srcBe, tableId, partitionId, indexId, tabletId, future);
         }
     }
 
@@ -561,6 +582,7 @@ public class CloudTabletRebalancerTest {
             invokePrivate(rebalancer, "revertWarmupState", new Class<?>[] {task.getClass()}, new Object[] {task});
 
             assertSameRouteIds(srcBe, tableId, partitionId, indexId, tabletId, future);
+            assertNotRouted(destBe, tableId, partitionId, indexId, tabletId, future);
         }
     }
 
@@ -605,23 +627,25 @@ public class CloudTabletRebalancerTest {
             ConcurrentHashMap<Long, Set<Long>> rebuiltCurrentGlobal = getField(rebalancer, "beToTabletsGlobal");
             ConcurrentHashMap<Long, Set<Long>> rebuiltFutureGlobal = getField(
                     rebalancer, "futureBeToTabletsGlobal");
-            ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> rebuiltCurrentByTable = getField(
+            ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> rebuiltCurrentByTable = getField(
                     rebalancer, "beToTabletsInTable");
-            ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> rebuiltFutureByTable = getField(
+            ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> rebuiltFutureByTable = getField(
                     rebalancer, "futureBeToTabletsInTable");
-            ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+            ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                     rebuiltCurrentByPartition = getField(rebalancer, "partitionToTablets");
-            ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+            ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                     rebuiltFutureByPartition = getField(rebalancer, "futurePartitionToTablets");
             Long currentTabletId = getStoredId(tabletId, rebuiltCurrentGlobal.get(srcBe));
             Long futureTabletId = getStoredId(tabletId, rebuiltFutureGlobal.get(srcBe));
             Assertions.assertSame(currentTabletId, futureTabletId);
-            assertSameStoredId(currentTabletId, rebuiltCurrentByTable.get(tableId).get(srcBe));
-            assertSameStoredId(currentTabletId, rebuiltFutureByTable.get(tableId).get(srcBe));
-            assertSameStoredId(currentTabletId,
-                    rebuiltCurrentByPartition.get(partitionId).get(indexId).get(srcBe));
-            assertSameStoredId(currentTabletId,
-                    rebuiltFutureByPartition.get(partitionId).get(indexId).get(srcBe));
+            Assertions.assertEquals(Set.of(tabletId), tableTablets(rebuiltCurrentByTable, tableId, srcBe));
+            Assertions.assertEquals(Set.of(tabletId), tableTablets(rebuiltFutureByTable, tableId, srcBe));
+            Assertions.assertEquals(List.of(tabletId),
+                    partitionTablets(rebuiltCurrentByPartition, partitionId, indexId, srcBe));
+            Assertions.assertEquals(List.of(tabletId),
+                    partitionTablets(rebuiltFutureByPartition, partitionId, indexId, srcBe));
+            Assertions.assertTrue(tableTablets(rebuiltFutureByTable, tableId, destBe).isEmpty());
+            Assertions.assertTrue(partitionTablets(rebuiltFutureByPartition, partitionId, indexId, destBe).isEmpty());
         }
     }
 
@@ -733,13 +757,13 @@ public class CloudTabletRebalancerTest {
 
         ConcurrentHashMap<Long, Set<Long>> currentGlobal = getField(rebalancer, "beToTabletsGlobal");
         ConcurrentHashMap<Long, Set<Long>> futureGlobal = getField(rebalancer, "futureBeToTabletsGlobal");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> releasedCurrentByTable =
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> releasedCurrentByTable =
                 getField(rebalancer, "beToTabletsInTable");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> releasedFutureByTable =
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> releasedFutureByTable =
                 getField(rebalancer, "futureBeToTabletsInTable");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 releasedCurrentByPartition = getField(rebalancer, "partitionToTablets");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 releasedFutureByPartition = getField(rebalancer, "futurePartitionToTablets");
         Assertions.assertSame(current.global, currentGlobal);
         Assertions.assertSame(future.global, futureGlobal);
@@ -759,20 +783,20 @@ public class CloudTabletRebalancerTest {
             rebalancer.statRouteInfo();
         }
 
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> rebuiltCurrentByTable =
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> rebuiltCurrentByTable =
                 getField(rebalancer, "beToTabletsInTable");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> rebuiltFutureByTable =
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> rebuiltFutureByTable =
                 getField(rebalancer, "futureBeToTabletsInTable");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 rebuiltCurrentByPartition = getField(rebalancer, "partitionToTablets");
-        ConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        ConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 rebuiltFutureByPartition = getField(rebalancer, "futurePartitionToTablets");
-        Assertions.assertEquals(Set.of(tabletId), rebuiltCurrentByTable.get(tableId).get(srcBe));
-        Assertions.assertEquals(Set.of(tabletId), rebuiltFutureByTable.get(tableId).get(srcBe));
-        Assertions.assertEquals(Set.of(tabletId),
-                rebuiltCurrentByPartition.get(partitionId).get(indexId).get(srcBe));
-        Assertions.assertEquals(Set.of(tabletId),
-                rebuiltFutureByPartition.get(partitionId).get(indexId).get(srcBe));
+        Assertions.assertEquals(Set.of(tabletId), tableTablets(rebuiltCurrentByTable, tableId, srcBe));
+        Assertions.assertEquals(Set.of(tabletId), tableTablets(rebuiltFutureByTable, tableId, srcBe));
+        Assertions.assertEquals(List.of(tabletId),
+                partitionTablets(rebuiltCurrentByPartition, partitionId, indexId, srcBe));
+        Assertions.assertEquals(List.of(tabletId),
+                partitionTablets(rebuiltFutureByPartition, partitionId, indexId, srcBe));
     }
 
     @Test
@@ -936,17 +960,26 @@ public class CloudTabletRebalancerTest {
         return systemInfoService;
     }
 
+    // The global set and the outer maps keep the selected boxed ids; the partition / table containers keep
+    // primitive ids, so only their contents are checked.
     private static void assertSameRouteIds(Long beId, Long tableId, Long partitionId, Long indexId,
             Long tabletId, RouteMaps routeMaps) {
         assertSameStoredId(beId, routeMaps.global);
-        assertSameStoredId(beId, routeMaps.byTable.get(tableId));
-        assertSameStoredId(beId, routeMaps.byPartition.get(partitionId).get(indexId));
         assertSameStoredId(tableId, routeMaps.byTable);
         assertSameStoredId(partitionId, routeMaps.byPartition);
-        assertSameStoredId(indexId, routeMaps.byPartition.get(partitionId));
         assertSameStoredId(tabletId, routeMaps.global.get(beId));
-        assertSameStoredId(tabletId, routeMaps.byTable.get(tableId).get(beId));
-        assertSameStoredId(tabletId, routeMaps.byPartition.get(partitionId).get(indexId).get(beId));
+        Assertions.assertTrue(tableTablets(routeMaps.byTable, tableId, beId).contains(tabletId.longValue()));
+        Assertions.assertEquals(List.of(tabletId),
+                partitionTablets(routeMaps.byPartition, partitionId, indexId, beId));
+    }
+
+    private static void assertNotRouted(Long beId, Long tableId, Long partitionId, Long indexId,
+            Long tabletId, RouteMaps routeMaps) {
+        Set<Long> globalTablets = routeMaps.global.get(beId);
+        Assertions.assertTrue(globalTablets == null || !globalTablets.contains(tabletId));
+        Assertions.assertFalse(tableTablets(routeMaps.byTable, tableId, beId).contains(tabletId.longValue()));
+        Assertions.assertFalse(partitionTablets(routeMaps.byPartition, partitionId, indexId, beId)
+                .contains(tabletId.longValue()));
     }
 
     private static <V> void assertSameStoredId(Long expected, Map<Long, V> map) {
@@ -971,33 +1004,23 @@ public class CloudTabletRebalancerTest {
         long indexId = 4L;
 
         CountingConcurrentHashMap<Long, Set<Long>> globalBeToTablets = new CountingConcurrentHashMap<>();
-        CountingConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> beToTabletsInTable =
+        CountingConcurrentHashMap<Long, Long2ObjectOpenHashMap<LongOpenHashSet>> beToTabletsInTable =
                 new CountingConcurrentHashMap<>();
-        CountingConcurrentHashMap<Long, Set<Long>> beToTabletsOfTable = new CountingConcurrentHashMap<>();
-        beToTabletsInTable.put(tableId, beToTabletsOfTable);
-
-        CountingConcurrentHashMap<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>
+        CountingConcurrentHashMap<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>
                 partToTablets = new CountingConcurrentHashMap<>();
-        CountingConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>> indexToTablets =
-                new CountingConcurrentHashMap<>();
-        CountingConcurrentHashMap<Long, Set<Long>> beToTabletsOfIndex = new CountingConcurrentHashMap<>();
-        partToTablets.put(partitionId, indexToTablets);
-        indexToTablets.put(indexId, beToTabletsOfIndex);
 
         rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, 5L,
                 globalBeToTablets, beToTabletsInTable, partToTablets);
         rebalancer.fillBeToTablets(beId, tableId, partitionId, indexId, 6L,
                 globalBeToTablets, beToTabletsInTable, partToTablets);
 
+        // the concurrent outer maps are only accessed through computeIfAbsent
         assertComputedContainerUsed(globalBeToTablets);
         assertComputedContainerUsed(beToTabletsInTable);
-        assertComputedContainerUsed(beToTabletsOfTable);
         assertComputedContainerUsed(partToTablets);
-        assertComputedContainerUsed(indexToTablets);
-        assertComputedContainerUsed(beToTabletsOfIndex);
         Assertions.assertEquals(Set.of(5L, 6L), globalBeToTablets.get(beId));
-        Assertions.assertEquals(Set.of(5L, 6L), beToTabletsOfTable.get(beId));
-        Assertions.assertEquals(Set.of(5L, 6L), beToTabletsOfIndex.get(beId));
+        Assertions.assertEquals(Set.of(5L, 6L), tableTablets(beToTabletsInTable, tableId, beId));
+        Assertions.assertEquals(List.of(5L, 6L), partitionTablets(partToTablets, partitionId, indexId, beId));
     }
 
     private static void assertComputedContainerUsed(CountingConcurrentHashMap<?, ?> map) {
@@ -1021,11 +1044,40 @@ public class CloudTabletRebalancerTest {
         Set<Long> picked = new HashSet<>();
 
         Long pickedTabletId = invokePrivate(r, "pickTabletPreferCold",
-                new Class<?>[] {long.class, Set.class, Set.class, Set.class},
+                new Class<?>[] {long.class, Collection.class, Set.class, Set.class},
                 new Object[] {1L, tabletIds, activeIds, picked});
 
         Assertions.assertNotNull(pickedTabletId);
         Assertions.assertEquals(200L, pickedTabletId.longValue(), "Should prefer cold tablet when available");
+    }
+
+    @Test
+    public void testPickTabletPreferCold_primitiveCandidates() throws Exception {
+        TestRebalancer r = new TestRebalancer();
+        setField(r, "rand", new Random(1));
+        Set<Long> activeIds = new HashSet<>(Collections.singletonList(100L));
+
+        // partition index: list, table: set; 200 is cold, 100 is hot, 300 is already picked
+        List<Collection<Long>> candidates = List.of(LongArrayList.wrap(new long[] {100L, 200L, 300L}),
+                new LongOpenHashSet(new long[] {100L, 200L, 300L}));
+        for (Collection<Long> tabletIds : candidates) {
+            Set<Long> picked = new LongOpenHashSet(new long[] {300L});
+            Long cold = invokePrivate(r, "pickTabletPreferCold",
+                    new Class<?>[] {long.class, Collection.class, Set.class, Set.class},
+                    new Object[] {1L, tabletIds, activeIds, picked});
+            Assertions.assertEquals(200L, cold.longValue());
+
+            picked.add(200L);
+            Long hot = invokePrivate(r, "pickTabletPreferCold",
+                    new Class<?>[] {long.class, Collection.class, Set.class, Set.class},
+                    new Object[] {1L, tabletIds, activeIds, picked});
+            Assertions.assertEquals(100L, hot.longValue(), "Should fall back to the hot tablet");
+
+            picked.add(100L);
+            Assertions.assertNull(invokePrivate(r, "pickTabletPreferCold",
+                    new Class<?>[] {long.class, Collection.class, Set.class, Set.class},
+                    new Object[] {1L, tabletIds, activeIds, picked}));
+        }
     }
 
     @Test
@@ -1041,7 +1093,7 @@ public class CloudTabletRebalancerTest {
         Set<Long> picked = new HashSet<>();
 
         Long pickedTabletId = invokePrivate(r, "pickTabletPreferCold",
-                new Class<?>[] {long.class, Set.class, Set.class, Set.class},
+                new Class<?>[] {long.class, Collection.class, Set.class, Set.class},
                 new Object[] {1L, tabletIds, activeIds, picked});
 
         Assertions.assertNotNull(pickedTabletId);
@@ -1073,13 +1125,13 @@ public class CloudTabletRebalancerTest {
         tableActive.put(20L, 100L); // should still lose because dbActive(2)=1 < dbActive(1)=5
         setField(r, "tableIdToActiveCount", new ConcurrentHashMap<>(tableActive));
 
-        Comparator<Map.Entry<Long, ConcurrentHashMap<Long, Set<Long>>>> cmp =
+        Comparator<Map.Entry<Long, Long2ObjectOpenHashMap<LongOpenHashSet>>> cmp =
                 invokePrivate(r, "tableEntryComparator", new Class<?>[] {}, new Object[] {});
 
-        List<Map.Entry<Long, ConcurrentHashMap<Long, Set<Long>>>> list = new ArrayList<>();
-        list.add(new AbstractMap.SimpleEntry<>(10L, new ConcurrentHashMap<>()));
-        list.add(new AbstractMap.SimpleEntry<>(11L, new ConcurrentHashMap<>()));
-        list.add(new AbstractMap.SimpleEntry<>(20L, new ConcurrentHashMap<>()));
+        List<Map.Entry<Long, Long2ObjectOpenHashMap<LongOpenHashSet>>> list = new ArrayList<>();
+        list.add(new AbstractMap.SimpleEntry<>(10L, new Long2ObjectOpenHashMap<>()));
+        list.add(new AbstractMap.SimpleEntry<>(11L, new Long2ObjectOpenHashMap<>()));
+        list.add(new AbstractMap.SimpleEntry<>(20L, new Long2ObjectOpenHashMap<>()));
 
         list.sort(cmp);
 
@@ -1101,12 +1153,12 @@ public class CloudTabletRebalancerTest {
         setField(r, "dbIdToActiveCount", new ConcurrentHashMap<>());
         setField(r, "tableIdToActiveCount", new ConcurrentHashMap<>());
 
-        Comparator<Map.Entry<Long, ConcurrentHashMap<Long, Set<Long>>>> cmp =
+        Comparator<Map.Entry<Long, Long2ObjectOpenHashMap<LongOpenHashSet>>> cmp =
                 invokePrivate(r, "tableEntryComparator", new Class<?>[] {}, new Object[] {});
 
-        List<Map.Entry<Long, ConcurrentHashMap<Long, Set<Long>>>> list = new ArrayList<>();
-        list.add(new AbstractMap.SimpleEntry<>(10L, new ConcurrentHashMap<>()));
-        list.add(new AbstractMap.SimpleEntry<>(20L, new ConcurrentHashMap<>()));
+        List<Map.Entry<Long, Long2ObjectOpenHashMap<LongOpenHashSet>>> list = new ArrayList<>();
+        list.add(new AbstractMap.SimpleEntry<>(10L, new Long2ObjectOpenHashMap<>()));
+        list.add(new AbstractMap.SimpleEntry<>(20L, new Long2ObjectOpenHashMap<>()));
         list.sort(cmp);
 
         Assertions.assertEquals(20L, list.get(0).getKey());
@@ -1135,13 +1187,13 @@ public class CloudTabletRebalancerTest {
         setField(r, "partitionIdToActiveCount", new ConcurrentHashMap<>(partActive));
 
         @SuppressWarnings("unchecked")
-        Comparator<Map.Entry<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>> cmp =
+        Comparator<Map.Entry<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>> cmp =
                 invokePrivate(r, "partitionEntryComparator", new Class<?>[] {}, new Object[] {});
 
-        List<Map.Entry<Long, ConcurrentHashMap<Long, ConcurrentHashMap<Long, Set<Long>>>>> list = new ArrayList<>();
-        list.add(new AbstractMap.SimpleEntry<>(100L, new ConcurrentHashMap<>()));
-        list.add(new AbstractMap.SimpleEntry<>(200L, new ConcurrentHashMap<>()));
-        list.add(new AbstractMap.SimpleEntry<>(201L, new ConcurrentHashMap<>()));
+        List<Map.Entry<Long, Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<LongArrayList>>>> list = new ArrayList<>();
+        list.add(new AbstractMap.SimpleEntry<>(100L, new Long2ObjectOpenHashMap<>()));
+        list.add(new AbstractMap.SimpleEntry<>(200L, new Long2ObjectOpenHashMap<>()));
+        list.add(new AbstractMap.SimpleEntry<>(201L, new Long2ObjectOpenHashMap<>()));
         list.sort(cmp);
 
         // normal db first; for 200 vs 201 (same dbActive, same partActive) tie-breaker is id desc => 201 first
