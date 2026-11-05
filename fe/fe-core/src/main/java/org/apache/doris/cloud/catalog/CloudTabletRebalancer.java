@@ -258,7 +258,7 @@ public class CloudTabletRebalancer extends MasterDaemon {
         BalanceTypeEnum computeGroupBalanceType = cg.getBalanceType();
         int computeGroupTimeout = cg.getBalanceWarmUpTaskTimeout();
         return computeGroupBalanceType != CloudComputeGroupMeta.DEFAULT_COMPUTE_GROUP_BALANCE_ENUM
-               || computeGroupTimeout != CloudComputeGroupMeta.DEFAULT_BALANCE_WARM_UP_TASK_TIMEOUT;
+                || computeGroupTimeout != CloudComputeGroupMeta.DEFAULT_BALANCE_WARM_UP_TASK_TIMEOUT;
     }
 
     public CloudTabletRebalancer(CloudSystemInfoService cloudSystemInfoService) {
@@ -559,7 +559,7 @@ public class CloudTabletRebalancer extends MasterDaemon {
                 if (migrated) {
                     statRouteInfo();
                 }
-
+                holdSchedulingIndexesForDebug();
                 indexBalanced = true;
                 tableBalanced = true;
                 performBalancing();
@@ -589,6 +589,29 @@ public class CloudTabletRebalancer extends MasterDaemon {
         } finally {
             rebalancerMetrics.finishRound(metricRound, currentRoundTabletScanCount);
         }
+    }
+
+    private void holdSchedulingIndexesForDebug() {
+        final String debugPointName = "CloudTabletRebalancer.holdSchedulingIndexes";
+        if (!DebugPointUtil.isEnable(debugPointName)) {
+            return;
+        }
+        long holdSeconds = DebugPointUtil.getDebugParamOrDefault(debugPointName, "seconds", 1800L);
+        long start = System.currentTimeMillis();
+        long deadline = start + holdSeconds * 1000L;
+        LOG.info("debug point {} enabled, hold the scheduling indexes for at most {} s",
+                debugPointName, holdSeconds);
+        while (System.currentTimeMillis() < deadline && DebugPointUtil.isEnable(debugPointName)) {
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        // hold only once per add, otherwise the next round would be held again after timeout
+        DebugPointUtil.removeDebugPoint(debugPointName);
+        LOG.info("debug point {} released after {} ms", debugPointName, System.currentTimeMillis() - start);
     }
 
     private void buildClusterToBackendMap() {
